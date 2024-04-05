@@ -57,7 +57,9 @@ export default function SelectDistrict() {
                     navigate('/login')
                   }}
                 >
-                  <h3 class="font-bold font-title group-focus:text-accent-light transition">{district.name}</h3>
+                  <h3 class="font-bold font-title text-left group-focus:text-accent-light transition">
+                    {district.name}
+                  </h3>
                   <span class="text-sm font-light text-fg/60">{district.address}</span>
                 </button>
               )}

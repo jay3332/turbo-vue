@@ -40,7 +40,7 @@ export interface Props {
 export default function Layout(props: ParentProps<Props>) {
   return (
     <div class="flex min-h-full items-center justify-center py-12 px-4 sm:px-6 lg:px-8 bg-cover">
-      <div class="bg-bg-3/60 px-10 py-8 backdrop-blur rounded-lg w-full max-w-md space-y-6 z-10">
+      <div class="bg-bg-3/60 px-10 mobile:px-8 py-8 backdrop-blur rounded-lg w-full max-w-md space-y-6 z-10">
         <div class="text-center">
           <a href="https://github.com/jay3332/turbo-vue" class="select-none">
             <img class="mx-auto h-8 w-auto" src="/banner-light.svg" alt="TurboVUE" />

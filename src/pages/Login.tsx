@@ -63,7 +63,7 @@ export default function Login() {
           class="flex items-center justify-center mt-2 py-2.5 bg-bg-0/70 transition hover:bg-3"
           href='/select-district'
         >
-          <span class="font-semibold text-fg/80 font-title text-sm">{district().name}</span>
+          <span class="font-semibold text-fg/80 font-title text-center text-sm">{district().name}</span>
         </A>
       </div>
 
