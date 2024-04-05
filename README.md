@@ -1,4 +1,8 @@
-<h1 align="center" id="turbovue">TurboVUE</h1>
+<h1 align="center" id="turbovue">
+  <img src="https://raw.githubusercontent.com/jay3332/turbo-vue/main/public/favicon.ico" align="center" width="100px">
+  
+  TurboVUE
+</h1>
 <p align="center">
   <sup>
     A fast, clean, and lightweight third-party alternative client to StudentVUE.    
