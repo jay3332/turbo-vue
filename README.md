@@ -1,36 +1,35 @@
-## Usage
+<h1 align="center" id="turbovue">TurboVUE</h1>
+<p align="center">
+  <sup>
+    A fast, clean, and lightweight third-party alternative client to StudentVUE.    
+    <br>
+    <a href="https://turbovue.jay3332.tech"><b>Go to TurboVUE</b></a>
+  </sup>
+</p>
 
-Those templates dependencies are maintained via [pnpm](https://pnpm.io) via `pnpm up -Lri`.
+## Why a StudentVUE client?
 
-This is the reason you see a `pnpm-lock.yaml`. That being said, any package manager will work. This file can be safely be removed once you clone a template.
+The StudentVUE user experience is described by many as slow, clunky, and outdated.
+TurboVUE aims to improve on the UI/UX of viewing your grades and assignments through a
+clean, fast, and lightweight client.
 
-```bash
-$ npm install # or pnpm install or yarn install
-```
+## How it works with the "new" StudentVUE
 
-### Learn more on the [Solid Website](https://solidjs.com) and come chat with us on our [Discord](https://discord.com/invite/solidjs)
+TurboVUE was created after all other third-party StudentVUE clients stopped working
+after major changes to the StudentVUE backend. This new backend is more 
+restrictive: most data must be physically scraped via a proxy server to circumvent CORS)
+and pages are dynamically loaded rather than being able to be fetched directly. As such,
+TurboVUE makes use of a 
+[simple proxy server](https://github.com/jay3332/turbo-vue/blob/main/proxy/main.py)
+to fetch and serialize data from the StudentVUE backend.
 
-## Available Scripts
+## Features
 
-In the project directory, you can run:
-
-### `npm run dev` or `npm start`
-
-Runs the app in the development mode.<br>
-Open [http://localhost:3000](http://localhost:3000) to view it in the browser.
-
-The page will reload if you make edits.<br>
-
-### `npm run build`
-
-Builds the app for production to the `dist` folder.<br>
-It correctly bundles Solid in production mode and optimizes the build for the best performance.
-
-The build is minified and the filenames include the hashes.<br>
-Your app is ready to be deployed!
-
-## Deployment
-
-You can deploy the `dist` folder to any static host provider (netlify, surge, now, etc.)
-
-## This project was created with the [Solid CLI](https://solid-cli.netlify.app)
+- Fast, accessible, responsive, and modern design
+- Much more streamlined view of grades and assignments
+- "What If" grade calculator
+  - Modify scores on any assignment, delete assignments, and add custom assignments
+    to see how they would affect your grade
+- Color-coded scores and assignment types
+- Themes
+- *more to come*
