@@ -1,6 +1,6 @@
 <h1 align="center" id="turbovue">
   <img src="https://raw.githubusercontent.com/jay3332/turbo-vue/main/public/favicon.ico" align="center" width="100px">
-  
+  <br>
   TurboVUE
 </h1>
 <p align="center">
