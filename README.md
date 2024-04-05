@@ -17,7 +17,7 @@ clean, fast, and lightweight client.
 
 TurboVUE was created after all other third-party StudentVUE clients stopped working
 after major changes to the StudentVUE backend. This new backend is more 
-restrictive: most data must be physically scraped via a proxy server to circumvent CORS)
+restrictive: most data must be physically scraped via a proxy server to circumvent CORS,
 and pages are dynamically loaded rather than being able to be fetched directly. As such,
 TurboVUE makes use of a 
 [simple proxy server](https://github.com/jay3332/turbo-vue/blob/main/proxy/main.py)
