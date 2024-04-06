@@ -86,6 +86,14 @@ details > summary::-webkit-details-marker { display: none }
     --c-link: 75 213 255;
     --c-link-hover: 155 232 255;
     --c-link-visited: 75 213 255;
+
+    --c-scale-0: 255 92 92;
+    --c-scale-1: 255 92 92;
+    --c-scale-2: 241 121 2;
+    --c-scale-3: 247 207 2;
+    --c-scale-4: 102 207 255;
+    --c-scale-5: 41 255 112;
+    --c-scale-6: 41 255 112;
   }
 }
 

@@ -1,6 +1,6 @@
-import Layout, {FormInput, FormSubmit} from "./Layout";
-import {Api, setApi} from "../api/Api";
-import {createMemo, createSignal} from "solid-js";
+import AuthLayout, {FormInput, FormSubmit} from "./AuthLayout";
+import {Api, getApi, setApi} from "../api/Api";
+import {createEffect, createMemo, createSignal} from "solid-js";
 import {A, useLocation, useNavigate} from "@solidjs/router";
 import {DistrictInfo} from "../api/types";
 
@@ -25,7 +25,7 @@ export default function Login() {
   })
 
   return (
-    <Layout
+    <AuthLayout
       title="Log in to StudentVUE"
       error={error()}
       redirectTo={redirectTo}
@@ -34,10 +34,15 @@ export default function Login() {
         const username = usernameRef!.value
         const password = passwordRef!.value
 
-        let api = await Api.fromLogin(district().host, username, password)
-        if (rememberMeRef!.checked) localStorage.setItem("token", api.token);
-        setApi(api)
-        navigate(redirectTo)
+        try {
+          let api = await Api.fromLogin(district().host, username, password)
+          if (rememberMeRef!.checked) localStorage.setItem("token", api.token);
+          setApi(api)
+          navigate(redirectTo)
+        } catch (e: any) {
+          setIsSubmitting(false)
+          setError(e.message)
+        }
       }}
     >
       <div class="flex flex-col -space-y-px rounded-md shadow-sm box-border overflow-hidden gap-[3px]">
@@ -67,7 +72,6 @@ export default function Login() {
         </A>
       </div>
 
-
       <div class="flex items-center mt-4 mobile-xs:gap-y-2">
         <input
           id="remember-me"
@@ -85,6 +89,6 @@ export default function Login() {
       <FormSubmit disabled={isSubmitting()}>
         {isSubmitting() ? "Logging in..." : "Log in"}
       </FormSubmit>
-    </Layout>
+    </AuthLayout>
   )
 }

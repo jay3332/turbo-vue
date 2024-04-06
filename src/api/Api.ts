@@ -1,18 +1,28 @@
 import msgpack from 'msgpack-lite';
-import {CourseMetadata, DistrictInfo, GradingPolicy, LoginResponse} from "./types";
+import {Course, CourseMetadata, DistrictInfo, GradingPeriod, GradingPolicy, LoginResponse, StudentInfo} from "./types";
 import {createRoot, createSignal} from "solid-js";
+import {ReactiveMap} from "@solid-primitives/map";
 
-const BASE_URL = 'http://127.0.0.1:8051'
+export const BASE_URL = 'http://127.0.0.1:8051'
 
 export class Api {
   token: string
-  courseOrder: CourseMetadata[]
+  courseOrders: ReactiveMap<string, CourseMetadata[]>
+  courses: ReactiveMap<string, Course>
   policy: GradingPolicy
+  gradingPeriods: Record<string, GradingPeriod>
+  student: StudentInfo
 
   constructor(loginResponse: LoginResponse) {
     this.token = loginResponse.token
-    this.courseOrder = loginResponse.courseOrder
+    this.courseOrders = new ReactiveMap()
+    this.courses = new ReactiveMap()
     this.policy = loginResponse.policy
+    this.student = loginResponse.student
+    this.gradingPeriods = loginResponse.gradingPeriods
+
+    this.courseOrders.set(this.defaultGradingPeriod, loginResponse.courseOrder)
+    let {} = this.updateAllCourses()
   }
 
   static async fromLogin(host: string, username: string, password: string): Promise<Api> {
@@ -21,8 +31,18 @@ export class Api {
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({host, username, password}),
     });
+    if (!response.ok) throw new Error(await response.text());
     const loginResponse = msgpack.decode(new Uint8Array(await response.arrayBuffer())) as LoginResponse;
     return new Api(loginResponse);
+  }
+
+  static async fromToken(token: string): Promise<Api> {
+    const headers = {Authorization: token};
+    const response = await fetch(BASE_URL + '/refresh', {method: 'POST', headers});
+    if (!response.ok) throw new Error(await response.text());
+
+    const loginResponse = msgpack.decode(new Uint8Array(await response.arrayBuffer())) as LoginResponse;
+    return new Api({...loginResponse, token});
   }
 
   static async fetchDistricts(zipCode: number): Promise<DistrictInfo[]> {
@@ -68,7 +88,40 @@ export class Api {
     }))
   }
 
-  async request(path: string, options: RequestInit = {}): Promise<any> {
+  get defaultGradingPeriod(): string {
+    return Object.values(this.gradingPeriods).find((period) => period.defaultFocus)!.GU
+  }
+
+  async updateAllCourses(gradingPeriod?: string) {
+    gradingPeriod ??= this.defaultGradingPeriod;
+    const {data, error} = await this.request(`/grades/${gradingPeriod}/courses`);
+    if (error) throw new Error(error);
+
+    for (const course of data) {
+      this.courses.set(`${gradingPeriod}:${course.classId}`, course);
+    }
+  }
+
+  calculateScoreStyle(scoreType: number, ratio: number): string {
+    const policy = this.policy.reportCardScoreTypes.find((type) => type.id === scoreType)!;
+    if (policy.max == -1) return 'fg'; // No max, so no percentage
+    if (ratio >= 1.0) return 'scale-6';
+    if (ratio <= 0.0) return 'scale-0';
+    // synergy measures in hundredths of a percent
+    ratio = Math.round(ratio * 10_000) / 10_000;
+
+    let scale = 5;
+    for (const boundary of policy.details) {
+      const lowRatio = boundary.lowScore / policy.max;
+      if (ratio >= lowRatio) return `scale-${scale}`;
+      scale = Math.max(1, scale - 1);
+    }
+    return 'fg';
+  }
+
+  async request(path: string, options: RequestInit = {}): Promise<
+    {data: any, error: null} | {data: null, error: string}
+  > {
     const headers: any = {
       ...(options.headers ?? {}),
       Authorization: this.token,
@@ -79,10 +132,9 @@ export class Api {
     options.headers = headers;
 
     const response = await fetch(BASE_URL + path, options);
-    if (!response.ok)
-      throw new Error(response.statusText);
-
-    return msgpack.decode(new Uint8Array(await response.arrayBuffer()));
+    return response.ok
+      ? {data: msgpack.decode(new Uint8Array(await response.arrayBuffer())), error: null}
+      : {error: await response.text(), data: null};
   }
 }
 

@@ -50,7 +50,7 @@ export interface ScoringPolicy {
   details: ScoreBoundary[],
 }
 
-export interface Student {
+export interface StudentPolicy {
   id: number,
   name: string,
   img: string,
@@ -67,7 +67,8 @@ export interface GradingPolicy {
   comment: AssignmentComment[],
   measureTypes: MeasureType[],
   reportCardScoreTypes: ScoringPolicy[],
-  student: Student,
+  students: StudentPolicy[],
+  defaultReportCardScoreTypeId: number,
 }
 
 export interface BaseGradeSummary {
@@ -119,21 +120,42 @@ export interface Assignment {
   maxScore: NumericString,
   maxValue: number,
   measureTypeId: number,
-  name: string,
+  name?: string,
   reportCardScoreTypeId: number,
   score: NumericString,
   studentId: number,
   week: string, // mm/dd/yyyy through mm/dd/yyyy
 }
 
+export interface GradingPeriod {
+  Name: string,
+  GroupName: string,
+  GU: string,
+  IsSubjectView: boolean,
+  IsLoaded: boolean,
+  OrgYearGU: string,
+  schoolID: number,
+  defaultFocus: boolean,
+}
+
 export interface LoginResponse {
   token: string,
   courseOrder: CourseMetadata[],
   policy: GradingPolicy,
+  student: StudentInfo,
+  gradingPeriods: Record<string, GradingPeriod>,
 }
 
 export interface DistrictInfo {
   name: string,
   address: string,
   host: string,
+}
+
+export interface StudentInfo {
+  sisNumber: string,
+  name: string,
+  schoolName: string,
+  schoolPhone: string,
+  photoUrl: string,
 }

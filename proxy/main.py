@@ -46,7 +46,7 @@ scrapers = web.AppKey('scrapers', dict[str, 'StudentVueScraper'])
 class StudentVueScraper:
     """Scrapes new StudentVUE website for student grades and assignments."""
 
-    def __init__(self, *, session: aiohttp.ClientSession, host: str) -> None:
+    def __init__(self, *, session: aiohttp.ClientSession, host: str, username: str, password: str) -> None:
         self.host: str = host
         self.session: aiohttp.ClientSession = session
 
@@ -58,11 +58,21 @@ class StudentVueScraper:
         self._course_data: dict[tuple[str, int], dict[str, Any]] = {}
         self.general_course_metadata: dict[str, Any] = MISSING
 
+        self.student_info: dict[str, Any] = MISSING
+        self.student_image: bytes | None = None
+
+        self._login_params = {
+            'ctl00$MainContent$username': username,
+            'ctl00$MainContent$password': password,
+            'ctl00$MainContent$btnLogin': 'Login',
+        }
+
     @staticmethod
     def _find_token(scraper: bs4.BeautifulSoup, id: str) -> str:
         return scraper.find('input', id=id)['value']
 
-    async def login(self, *, username: str, password: str) -> None:
+    async def login(self) -> None:
+        self.invalidate_cache()
         async with self.get(path := '/PXP2_Login_Student.aspx?regenerateSessionId=True') as response:
             self._html = await response.text()
 
@@ -73,11 +83,12 @@ class StudentVueScraper:
             '__VIEWSTATE': get('__VIEWSTATE'),
             '__VIEWSTATEGENERATOR': get('__VIEWSTATEGENERATOR'),
             '__EVENTVALIDATION': get('__EVENTVALIDATION'),
-            'ctl00$MainContent$username': username,
-            'ctl00$MainContent$password': password,
-            'ctl00$MainContent$btnLogin': 'Login',
+            **self._login_params,
         }
         async with self.post(path, data=payload) as response:
+            html = await response.text()
+            if 'ctl00_MainContent_ERROR' in html:
+                raise web.HTTPUnauthorized(text='Invalid credentials')
             self.cookies = response.cookies
 
         headers = {'Current_web_portal': 'StudentVUE'}
@@ -146,15 +157,16 @@ class StudentVueScraper:
         gradebook = await self.fetch_gradebook(grading_period)
         for course in courses:
             course_id = course['ID']
-            div = gradebook.find('div', {'data-guid': str(course_id), 'data-mark-gu': True})
+            div = gradebook.find('div', {'data-guid': str(course_id)})
             course['room'] = div.find('div', class_='teacher-room').text.removeprefix('Room: ')
-            course['markPreview'] = div.find('span', class_='mark').text
-            course['scorePreview'] = div.find('span', class_='score').text
 
             if (grading_period, course_id) not in self._course_focus_data:
-                div = gradebook.find('div', {'data-guid': str(course_id)})
                 btn = div.find('button', {'data-focus': True})
                 self._course_focus_data[grading_period, course_id] = json.loads(btn['data-focus'])
+
+            div = gradebook.find('div', {'data-guid': str(course_id), 'data-mark-gu': True})
+            course['markPreview'] = div.find('span', class_='mark').text
+            course['scorePreview'] = div.find('span', class_='score').text
 
     async def fetch_grading_policy(self) -> dict[str, Any]:
         async with self.post(
@@ -173,6 +185,7 @@ class StudentVueScraper:
 
         if self.general_course_metadata is MISSING:
             self.general_course_metadata = metadata
+        metadata['defaultReportCardScoreTypeId'] = data['classGrades'][0]['reportCardScoreTypeId']
         return data
 
     async def fetch_course_data(self, grading_period: str, course_id: int) -> dict[str, Any]:
@@ -226,9 +239,22 @@ class StudentVueScraper:
         return list(await asyncio.gather(*tasks))
 
     async def fetch_student_info(self) -> dict[str, Any]:
+        if self.student_info:
+            return self.student_info
+
         async with self.post('/api/v1/components/pxp/student-picker/StudentPicker/GetStudents') as response:
             data = await response.json()
-            return data['data'][0]
+            self.student_info = out = data['data'][0]
+            return out
+
+    async def fetch_student_image(self) -> bytes:
+        if self.student_image is not None:
+            return self.student_image
+
+        student_info = await self.fetch_student_info()
+        async with self.get('/' + student_info['photoUrl']) as response:
+            self.student_image = out = await response.read()
+            return out
 
     def request(self, method: Literal['GET', 'POST'], path: str, **kwargs: Any) -> _RequestContextManager:
         return self.session.request(method, self.host + path, cookies=self.cookies, **kwargs)
@@ -255,35 +281,75 @@ async def hello() -> web.Response:
 @routes.post('/login')
 async def login(request: web.Request) -> web.Response:
     data = await request.json()
-    if any(not isinstance(data.get(key), str) for key in ('username', 'password', 'host')):
-        return web.json_response(
-            {'error': 'must provide three JSON keys "username", "password", and "host"'},
+    pick = ('username', 'password', 'host')
+
+    params: dict[str, str] = MISSING
+    try:
+        params = {key: data[key] for key in pick}
+    except KeyError:
+        invalid = True
+    else:
+        invalid = any(not isinstance(val, str) for val in params.values())
+    if invalid:
+        return web.Response(
+            text='Must provide three strings "username", "password", and "host"',
             status=400,
         )
 
-    scraper = StudentVueScraper(session=aiohttp.ClientSession(), host=data['host'])
-    await scraper.login(username=data['username'], password=data['password'])
+    scraper = StudentVueScraper(session=aiohttp.ClientSession(), **params)
+    await scraper.login()
     token = uuid.uuid4().hex
 
     request.app[scrapers][token] = scraper
+    student = await scraper.fetch_student_info()
     metadata = await scraper.fetch_courses_metadata(scraper.default_grading_period)
     await scraper.fetch_grading_policy()
 
-    out = msgpack.dumps({'token': token, 'courseOrder': metadata, 'policy': scraper.general_course_metadata})
+    out = msgpack.dumps({
+        'token': token,
+        'courseOrder': metadata,
+        'policy': scraper.general_course_metadata,
+        'student': student,
+        'gradingPeriods': scraper.grading_periods,
+    })
     return web.Response(body=out)
 
 
 def auth(request: web.Request) -> StudentVueScraper:
     token = request.headers.get('Authorization')
     if not token:
-        raise web.HTTPUnauthorized(text='missing token')
+        raise web.HTTPUnauthorized(text='Missing token')
 
     if t := request.app[scrapers].get(token):
         if 'X-Invalidate-Cache' in request.headers:
             t.invalidate_cache()
         return t
 
-    raise web.HTTPUnauthorized(text='invalid token')
+    raise web.HTTPUnauthorized(text='Invalid token')
+
+
+@routes.post('/refresh')
+async def refresh_login(request: web.Request) -> web.Response:
+    scraper = auth(request)
+    try:
+        await scraper.login()
+    except web.HTTPUnauthorized:
+        token = request.headers['Authorization']
+        await scraper.close()
+        del request.app[scrapers][token]
+        raise
+
+    metadata = await scraper.fetch_courses_metadata(scraper.default_grading_period)
+    student = await scraper.fetch_student_info()
+    await scraper.fetch_grading_policy()
+
+    out = msgpack.dumps({
+        'courseOrder': metadata,
+        'policy': scraper.general_course_metadata,
+        'student': student,
+        'gradingPeriods': scraper.grading_periods,
+    })
+    return web.Response(body=out)
 
 
 @routes.get('/grades/{grading_period}')
@@ -291,7 +357,7 @@ async def get_grading_period_info(request: web.Request) -> web.Response:
     scraper = auth(request)
     grading_period = request.match_info['grading_period']
     if grading_period not in scraper.grading_periods:
-        return web.json_response({'error': 'invalid grading period'}, status=400)
+        return web.Response(text='Invalid grading period', status=400)
 
     out = msgpack.dumps(await scraper.fetch_courses_metadata(grading_period))
     return web.Response(body=out)
@@ -302,7 +368,7 @@ async def get_courses(request: web.Request) -> web.Response:
     scraper = auth(request)
     grading_period = request.match_info['grading_period']
     if grading_period not in scraper.grading_periods:
-        return web.json_response({'error': 'invalid grading period'}, status=400)
+        return web.Response(text='Invalid grading period', status=400)
 
     out = msgpack.dumps(await scraper.fetch_all_courses(grading_period))
     return web.Response(body=out)
@@ -315,15 +381,22 @@ async def get_course(request: web.Request) -> web.Response:
     try:
         course_id = int(request.match_info['course_id'])
     except ValueError:
-        return web.json_response({'error': 'invalid course ID'}, status=400)
+        return web.Response(text='invalid course ID', status=400)
     if grading_period not in scraper.grading_periods:
-        return web.json_response({'error': 'invalid grading period'}, status=400)
+        return web.Response(text='invalid grading period', status=400)
 
     try:
         out = msgpack.dumps(await scraper.fetch_course_data(grading_period, course_id))
     except KeyError:
-        return web.json_response({'error': 'invalid course ID'}, status=400)
+        return web.Response(text='invalid course ID', status=400)
     return web.Response(body=out)
+
+
+@routes.get('/photo')
+async def get_photo(request: web.Request) -> web.Response:
+    scraper = auth(request)
+    image = await scraper.fetch_student_image()
+    return web.Response(body=image, content_type='image/png')
 
 
 if __name__ == '__main__':

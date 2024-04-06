@@ -1,4 +1,4 @@
-import Layout from "./Layout";
+import AuthLayout from "./AuthLayout";
 import {Api} from "../api/Api";
 import {createSignal, For, Show} from "solid-js";
 import {useLocation, useNavigate} from "@solidjs/router";
@@ -14,7 +14,7 @@ export default function SelectDistrict() {
   const [submitTimeout, setSubmitTimeout] = createSignal<NodeJS.Timeout>()
 
   return (
-    <Layout
+    <AuthLayout
       title="Select School District"
       redirectTo={redirectTo}
       onSubmit={() => {}}
@@ -54,7 +54,7 @@ export default function SelectDistrict() {
                   class="flex flex-col bg-bg-0/70 p-3 transition hover:bg-3 group focus:outline-none"
                   onClick={() => {
                     localStorage.setItem('preferredHost', JSON.stringify(district))
-                    navigate('/login')
+                    navigate('/')
                   }}
                 >
                   <h3 class="font-bold font-title text-left group-focus:text-accent-light transition">
@@ -67,6 +67,6 @@ export default function SelectDistrict() {
           </div>
         </div>
       </Show>
-    </Layout>
+    </AuthLayout>
   )
 }

@@ -37,3 +37,12 @@ to fetch and serialize data from the StudentVUE backend.
 - Color-coded scores and assignment types
 - Themes
 - *more to come*
+
+### Coverage
+
+- [x] Gradebook
+  - [x] Switch Grading Periods (MP2, MP2 Interim, etc.)
+  - [x] Assignments
+- [ ] Schedule
+- [ ] Attendance
+- [ ] Documents

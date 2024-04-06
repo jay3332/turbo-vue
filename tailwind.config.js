@@ -47,6 +47,15 @@ module.exports = {
           hover: variable('link-hover'),
           visited: variable('link-visited'),
         },
+        scale: {
+          0: variable('scale-0'), // typically 0 or failing
+          1: variable('scale-1'), // typically E
+          2: variable('scale-2'), // typically D
+          3: variable('scale-3'), // typically C
+          4: variable('scale-4'), // typically B
+          5: variable('scale-5'), // typically A
+          6: variable('scale-6'), // typically A+ or 100%
+        },
         highlight: {
           DEFAULT: colors.yellow[400],
           content: colors.black,
