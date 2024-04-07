@@ -1,7 +1,7 @@
 import AuthLayout, {FormInput, FormSubmit} from "./AuthLayout";
 import {Api, getApi, setApi} from "../api/Api";
 import {createEffect, createMemo, createSignal} from "solid-js";
-import {A, useLocation, useNavigate} from "@solidjs/router";
+import {A, Navigate, useLocation, useNavigate} from "@solidjs/router";
 import {DistrictInfo} from "../api/types";
 
 export default function Login() {
@@ -23,6 +23,9 @@ export default function Login() {
       host: "https://md-mcps-psv.edupoint.com"
     }
   })
+
+  if (localStorage.getItem('token'))
+    return <Navigate href="/refresh-mount" state={{redirectTo}} />
 
   return (
     <AuthLayout

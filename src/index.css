@@ -150,3 +150,14 @@ details > summary::-webkit-details-marker { display: none }
   @apply !bg-transparent whitespace-pre-wrap break-words;
   @apply all-children:px-0 all-children:text-sm all-children:font-normal;
 }
+
+input::-webkit-outer-spin-button,
+input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* Firefox */
+input[type=number] {
+  -moz-appearance: textfield;
+}

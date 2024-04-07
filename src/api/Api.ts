@@ -1,9 +1,26 @@
 import msgpack from 'msgpack-lite';
-import {Course, CourseMetadata, DistrictInfo, GradingPeriod, GradingPolicy, LoginResponse, StudentInfo} from "./types";
+import {
+  Assignment,
+  Course,
+  CourseMetadata,
+  DistrictInfo,
+  GradingPeriod,
+  GradingPolicy,
+  LoginResponse,
+  StudentInfo
+} from "./types";
 import {createRoot, createSignal} from "solid-js";
 import {ReactiveMap} from "@solid-primitives/map";
 
 export const BASE_URL = 'http://127.0.0.1:8051'
+
+export type CustomAssignment = Assignment & {
+  isCustom?: boolean
+}
+
+export function createAssignment(base: Assignment, isCustom: boolean): CustomAssignment {
+  return {...base, isCustom}
+}
 
 export class Api {
   token: string
@@ -12,6 +29,7 @@ export class Api {
   policy: GradingPolicy
   gradingPeriods: Record<string, GradingPeriod>
   student: StudentInfo
+  assignments: ReactiveMap<string, CustomAssignment[]>
 
   constructor(loginResponse: LoginResponse) {
     this.token = loginResponse.token
@@ -20,6 +38,7 @@ export class Api {
     this.policy = loginResponse.policy
     this.student = loginResponse.student
     this.gradingPeriods = loginResponse.gradingPeriods
+    this.assignments = new ReactiveMap()
 
     this.courseOrders.set(this.defaultGradingPeriod, loginResponse.courseOrder)
     let {} = this.updateAllCourses()
@@ -99,7 +118,60 @@ export class Api {
 
     for (const course of data) {
       this.courses.set(`${gradingPeriod}:${course.classId}`, course);
+      this.populateAssignments(gradingPeriod, course)
     }
+  }
+
+  populateAssignments(gradingPeriod: string, course: Course) {
+    this.assignments.set(`${gradingPeriod}:${course.classId}`, course.assignments.sort((a, b) => (
+      new Date(b.dueDate).getTime() - new Date(a.dueDate).getTime()
+    )).map(assignment => createAssignment(assignment, false)))
+  }
+
+  private totalAssignmentPointsBy(
+    transform: (a: CustomAssignment) => number,
+    gradingPeriod: string,
+    courseId: number,
+    categoryId?: number,
+  ): number {
+    const assignments = this.assignments.get(`${gradingPeriod}:${courseId}`)!;
+    return assignments
+      .filter(assignment =>
+        assignment.isForGrading
+        && assignment.score != null
+        && (categoryId != null ? assignment.measureTypeId === categoryId : true)
+      )
+      .reduce((acc, assignment) => acc + transform(assignment), 0)
+  }
+
+  totalAssignmentPoints(gradingPeriod: string, courseId: number, categoryId?: number): number {
+    return this.totalAssignmentPointsBy(a => parseFloat(a.score!), gradingPeriod, courseId, categoryId)
+  }
+
+  maxAssignmentPoints(gradingPeriod: string, courseId: number, categoryId?: number): number {
+    return this.totalAssignmentPointsBy(a => parseFloat(a.maxScore), gradingPeriod, courseId, categoryId)
+  }
+
+  calculateWeightedPointRatio(gradingPeriod: string, courseId: number): number {
+    return this.policy.measureTypes
+      .map(type => (
+        this.totalAssignmentPoints(gradingPeriod, courseId, type.id)
+        / this.maxAssignmentPoints(gradingPeriod, courseId, type.id)
+        * type.weight
+        / 100
+      ))
+      .filter(weight => !isNaN(weight))
+      .reduce((acc, weight) => acc + weight, 0)
+  }
+
+  calculateMark(scoreType: number, ratio: number): string {
+    const policy = this.policy.reportCardScoreTypes.find((type) => type.id === scoreType)!;
+    if (!policy || policy.max == -1) return 'N/A'; // No max, so no percentage
+
+    for (const boundary of policy.details) {
+      if (ratio >= boundary.lowScore / policy.max) return boundary.score;
+    }
+    return 'N/A';
   }
 
   calculateScoreStyle(scoreType: number, ratio: number): string {

@@ -13,18 +13,18 @@ const SelectDistrict = lazy(() => import('./pages/SelectDistrict'));
 const RedirectingLogin = lazy(async () => {
   const redirectTo = useLocation().pathname
   return {
-    default: () => <Navigate href="/" state={{redirectTo}} />
+    default: () => localStorage.getItem('token')
+      ? <Navigate href="/refresh-mount" state={{redirectTo}} />
+      : <Navigate href="/" state={{redirectTo}} />
   }
 })
 
 function RefreshMount() {
   const navigate = useNavigate()
-  const redirectTo = useLocation().pathname
+  const redirectTo = useLocation<{ redirectTo: string }>().state?.redirectTo ?? '/'
 
   onMount(() => {
     const token = localStorage.getItem('token');
-    // const district = localStorage.getItem('preferredHost');
-    // const host = district ? JSON.parse(district).host : 'https://md-mcps-psv.edupoint.com';
 
     if (token != null && !getApi()) {
       Api.fromToken(token).then((api) => {
@@ -37,7 +37,11 @@ function RefreshMount() {
     }
   })
 
-  return null
+  return (
+    <div class="w-full h-full flex flex-col items-center justify-center font-title text-2xl font-black animate-pulse">
+      Loading...
+    </div>
+  )
 }
 
 const Grades = lazy(() => import('./pages/Grades'))
@@ -49,11 +53,9 @@ const App: Component = () => {
       <Router>
         <Show when={getApi()} fallback={
           <>
-            <Router>
-              <Route path="*" component={RefreshMount} />
-            </Router>
             <Route path="/" component={Login} />
             <Route path="/select-district" component={SelectDistrict} />
+            <Route path="/refresh-mount" component={RefreshMount} />
             <Route path="*" component={RedirectingLogin} />
           </>
         }>

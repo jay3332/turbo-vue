@@ -1,4 +1,3 @@
-import asyncio
 import functools
 import json
 import re
@@ -226,17 +225,13 @@ class StudentVueScraper:
         for assignment in assignments:
             if name := assignment_lookup.get(assignment['gradeBookId']):
                 assignment['name'] = name
-            else:
-                # TODO: use logging
-                print('Missing assignment:', assignment['gradeBookId'])
 
         self._course_data[grading_period, course_id] = course_data
         return course_data
 
     async def fetch_all_courses(self, grading_period: str) -> list[dict[str, Any]]:  # Slow query
         courses = await self.fetch_courses_metadata(grading_period)
-        tasks = [self.fetch_course_data(grading_period, course['ID']) for course in courses]
-        return list(await asyncio.gather(*tasks))
+        return [await self.fetch_course_data(grading_period, course['ID']) for course in courses]
 
     async def fetch_student_info(self) -> dict[str, Any]:
         if self.student_info:

@@ -150,13 +150,7 @@ export default function Layout(props: ParentProps) {
     let pathname = location.pathname
     if (pathname === '/') return 'Grades'
     if (pathname.startsWith('/grades')) {
-      if (params.courseId) {
-        const { gradingPeriod, courseId } = params
-        return api.courseOrders
-          .get(gradingPeriod)
-          ?.find(c => c.ID.toString() === courseId)
-          ?.Name
-      }
+      if (params.courseId) return 'Course Details'
       if (params.gradingPeriod) {
         return 'Grades: ' + api.gradingPeriods[params.gradingPeriod].Name
       }
@@ -213,7 +207,7 @@ export default function Layout(props: ParentProps) {
           onClick={() => isMobile() && setShowSidebar(false)}
         >
           <ErrorBoundary fallback={(err) => (
-            <div class="text-red-900 bg-red-300 rounded-lg p-4 mr-2 mt-2 flex flex-col">
+            <div class="text-red-900 bg-red-300 rounded-lg p-4 mx-2 mt-2 flex flex-col">
               <p class="font-bold">Error: {err.message}</p>
               <p class="font-light text-sm">
                 If this error persists, please&nbsp;

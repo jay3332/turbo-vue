@@ -16,7 +16,10 @@ export function CourseGrade({ gradingPeriod, course }: { gradingPeriod: string, 
   const resolved = createMemo(() => api.courses.get(`${gradingPeriod}:${course.ID}`))
   const ratio = createMemo(() => {
     if (!resolved()) return sanitizeGradePreview(course.scorePreview) / 100
-    return resolved()!.classGrades[0].totalWeightedPercentage / 100 // TODO: should return percent after CALCULATIONS
+    else if (!api.assignments.has(`${gradingPeriod}:${course.ID}`))
+      return resolved()!.classGrades[0].totalWeightedPercentage / 100
+
+    return api.calculateWeightedPointRatio(gradingPeriod, course.ID)
   });
   const scoreStyle = createMemo(() => resolved()
     ? api.calculateScoreStyle(resolved()!.classGrades[0].reportCardScoreTypeId, ratio())
@@ -25,7 +28,10 @@ export function CourseGrade({ gradingPeriod, course }: { gradingPeriod: string, 
   const mark = createMemo(() => {
     if (!resolved()) return course.markPreview
     const grade = resolved()!.classGrades[0]
-    return grade.manualMark ?? grade.calculatedMark  // TODO: should return percent after CALCULATIONS
+    if (!api.assignments.has(`${gradingPeriod}:${course.ID}`))
+      return grade.manualMark ?? grade.calculatedMark
+
+    return api.calculateMark(grade.reportCardScoreTypeId, ratio())
   })
   const style = () => ({ color: `rgb(var(--c-${scoreStyle()}))` })
   const fmt = new Intl.NumberFormat('en-US', { style: 'percent', maximumFractionDigits: 2 })

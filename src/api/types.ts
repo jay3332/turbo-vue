@@ -122,7 +122,7 @@ export interface Assignment {
   measureTypeId: number,
   name?: string,
   reportCardScoreTypeId: number,
-  score: NumericString,
+  score: NumericString | null,
   studentId: number,
   week: string, // mm/dd/yyyy through mm/dd/yyyy
 }
