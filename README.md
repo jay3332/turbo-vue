@@ -7,7 +7,7 @@
   <sup>
     A fast, clean, and lightweight third-party alternative client to StudentVUE.    
     <br>
-    <a href="https://turbovue.jay3332.tech"><b>Go to TurboVUE</b></a>
+    <a href="https://grades.jay3332.tech"><b>Go to TurboVUE</b></a>
   </sup>
 </p>
 
