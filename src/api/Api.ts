@@ -12,7 +12,7 @@ import {
 import {createRoot, createSignal} from "solid-js";
 import {ReactiveMap} from "@solid-primitives/map";
 
-export const BASE_URL = 'http://127.0.0.1:8051'
+export const BASE_URL = 'https://turbovue-api.jay3332.tech'
 
 export type CustomAssignment = Assignment & {
   isCustom?: boolean
