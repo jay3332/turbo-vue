@@ -186,14 +186,16 @@ function WeightProgressBar({ gradingPeriod, courseId, measureType, scoreType }: 
       <div class="absolute z-10 flex px-3 inset-0 w-full h-full items-center justify-between">
         <h2 class="font-title font-bold text-medium">{measureType.name}</h2>
         <div class="flex items-center">
-          <div class="mt-1 mr-8">
+          <div class="mt-1 mr-8 mobile-xs:mr-0">
             <sup class="font-bold text-base text-right">
               {points()}
             </sup>
             <span class="text-fg/70 font-light text-lg">&frasl;</span>
             <sub class="font-light text-fg/60">{maxPoints()}</sub>
           </div>
-          {Intl.NumberFormat('en-US', {style: 'percent', maximumFractionDigits: 2}).format(ratio())}
+          <span class="w-14 text-right mobile:w-10 mobile:text-sm mobile-xs:hidden">
+            {Intl.NumberFormat('en-US', {style: 'percent', maximumFractionDigits: 2}).format(ratio())}
+          </span>
         </div>
       </div>
     </div>
