@@ -121,7 +121,7 @@ function AssignmentDetails(props: AssignmentProps) {
                 }}
                 class="font-bold text-base text-right focus:outline-none bg-transparent"
                 type="number"
-                inputMode="numeric"
+                inputMode="decimal"
                 value={transform(score()!)}
                 onInput={e => {
                   if (e.currentTarget.value === '') return setScore('0')
@@ -135,7 +135,7 @@ function AssignmentDetails(props: AssignmentProps) {
                 style={{width: `${transform(maxScore()!).length}ch`}}
                 class="text-fg/60 font-light text-sm focus:outline-none bg-transparent"
                 type="number"
-                inputMode="numeric"
+                inputMode="decimal"
                 value={transform(maxScore()!)}
                 onInput={e => {
                   if (e.currentTarget.value === '') return setScore('1')
