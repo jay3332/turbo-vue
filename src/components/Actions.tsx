@@ -1,9 +1,10 @@
-import {useLocation, useParams} from "@solidjs/router";
+import {useLocation, useNavigate, useParams} from "@solidjs/router";
 import {JSX, Match, Switch} from "solid-js";
 import Icon, {IconElement} from "./icons/Icon";
 import {getApi} from "../api/Api";
 import ArrowsRotate from "./icons/svg/ArrowsRotate";
 import tooltip from "../directives/tooltip";
+import SolidSquare from "./icons/svg/SolidSquare";
 void tooltip
 
 type ActionButtonProps = { icon: IconElement, label: string } & JSX.ButtonHTMLAttributes<HTMLButtonElement>
@@ -25,30 +26,34 @@ function ActionButton({ onClick, icon, label, ...props }: ActionButtonProps) {
 function CourseActions() {
   const api = getApi()!
   const params = useParams()
+  const navigate = useNavigate()
 
   return (
-   <ActionButton
-      onClick={async (event) => {
-        const target = event.currentTarget
-        target.disabled = true
-        try {
-          if (params.courseId) {
-            const {data} = await api.request(`/grades/${params.gradingPeriod}/courses/${params.courseId}`) // TODO: toast
-            if (data) {
-              const key = `${params.gradingPeriod}:${params.courseId}`
-              api.courses.set(key, data)
-              api.populateAssignments(params.gradingPeriod, data)
+    <>
+      <ActionButton onClick={() => navigate(params.gradingPeriod)} icon={SolidSquare} label="Courses" />
+      <ActionButton
+        onClick={async (event) => {
+          const target = event.currentTarget
+          target.disabled = true
+          try {
+            if (params.courseId) {
+              const {data} = await api.request(`/grades/${params.gradingPeriod}/courses/${params.courseId}`) // TODO: toast
+              if (data) {
+                const key = `${params.gradingPeriod}:${params.courseId}`
+                api.courses.set(key, data)
+                api.populateAssignments(params.gradingPeriod, data)
+              }
+            } else {
+              await api.updateAllCourses(params.gradingPeriod)
             }
-          } else {
-            await api.updateAllCourses(params.gradingPeriod)
+          } finally {
+            target.disabled = false
           }
-        } finally {
-          target.disabled = false
-        }
-      }}
-      icon={ArrowsRotate}
-      label={params.courseId ? 'Refresh Course' : 'Refresh Grades'}
-    />
+        }}
+        icon={ArrowsRotate}
+        label={params.courseId ? 'Refresh Course' : 'Refresh Grades'}
+      />
+    </>
   )
 }
 
