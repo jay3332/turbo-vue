@@ -1,5 +1,5 @@
 import {useLocation, useNavigate, useParams} from "@solidjs/router";
-import {JSX, Match, Switch} from "solid-js";
+import {JSX, Match, Show, Switch} from "solid-js";
 import Icon, {IconElement} from "./icons/Icon";
 import {getApi} from "../api/Api";
 import ArrowsRotate from "./icons/svg/ArrowsRotate";
@@ -30,7 +30,9 @@ function CourseActions() {
 
   return (
     <>
-      <ActionButton onClick={() => navigate(params.gradingPeriod)} icon={SolidSquare} label="Courses" />
+      <Show when={params.courseId}>
+        <ActionButton onClick={() => navigate(params.gradingPeriod)} icon={SolidSquare} label="Courses" />
+      </Show>
       <ActionButton
         onClick={async (event) => {
           const target = event.currentTarget
