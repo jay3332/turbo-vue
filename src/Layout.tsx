@@ -19,6 +19,7 @@ import GearIcon from "./components/icons/svg/Gear";
 import HomeIcon from "./components/icons/svg/Home";
 import SolidSquare from "./components/icons/svg/SolidSquare";
 import RightFromBracket from "./components/icons/svg/RightFromBracket";
+import Actions from "./components/Actions";
 
 enum Tab { Home, Settings }
 
@@ -201,6 +202,7 @@ export default function Layout(props: ParentProps) {
             </button>
             <span class="font-title font-bold">{header()}</span>
           </div>
+          <Actions />
         </div>
         <div
           class="flex flex-col flex-grow w-full h-full overflow-auto"

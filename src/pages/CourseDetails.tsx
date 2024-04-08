@@ -23,7 +23,10 @@ function sanitizeCategoryType(category: string) {
 
 const transform = (value: string) => parseFloat(value.replaceAll(',', '')).toString()
 
-type AssignmentProps = { assignment: CustomAssignment, idx: Accessor<number>, setAssignments: Setter<CustomAssignment[]> }
+type AssignmentProps = {
+  assignment: CustomAssignment, idx: Accessor<number>, setAssignments: Setter<CustomAssignment[]>,
+  ack: Setter<boolean>,
+}
 
 function AssignmentDetails(props: AssignmentProps) {
   const api = getApi()!
@@ -57,6 +60,7 @@ function AssignmentDetails(props: AssignmentProps) {
       const modified = api.assignments.get(key)!.map((old, j) => (
         props.idx() == j ? updated : {...old}
       ))
+      props.ack(false)
       api.assignments.set(key, modified)
     },
     { defer: true }
@@ -212,7 +216,7 @@ export default function CourseDetails() {
         Loading...
       </div>
     }>
-      <CourseDetailsInner/>
+      <CourseDetailsInner />
     </Show>
   )
 }
@@ -239,8 +243,21 @@ export function CourseDetailsInner() {
     }
   })
 
+  const [acked, setAcked] = createSignal(true)
   createEffect(on(
-    assignments, (assignments) => api.assignments.set(key, assignments),
+    assignments, (assignments) => {
+      setAcked(false)
+      api.assignments.set(key, assignments)
+    },
+    { defer: true }
+  ))
+
+  createEffect(on(
+    () => api.assignments.get(key), (updated) => {
+      if (!acked()) return setAcked(true)
+      console.log('ok')
+      if (updated != null) setAssignments(updated)
+    },
     { defer: true }
   ))
 
@@ -330,7 +347,7 @@ export function CourseDetailsInner() {
             <tbody>
               <For each={assignments()} fallback="No assignments yet!">
                 {(assignment, idx) => (
-                  <AssignmentDetails assignment={assignment} idx={idx} setAssignments={setAssignments} />
+                  <AssignmentDetails assignment={assignment} idx={idx} setAssignments={setAssignments} ack={setAcked} />
                 )}
               </For>
             </tbody>
