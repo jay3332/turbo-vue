@@ -255,7 +255,6 @@ export function CourseDetailsInner() {
   createEffect(on(
     () => api.assignments.get(key), (updated) => {
       if (!acked()) return setAcked(true)
-      console.log('ok')
       if (updated != null) setAssignments(updated)
     },
     { defer: true }
