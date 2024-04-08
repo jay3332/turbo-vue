@@ -187,8 +187,14 @@ class StudentVueScraper:
         metadata['defaultReportCardScoreTypeId'] = data['classGrades'][0]['reportCardScoreTypeId']
         return data
 
-    async def fetch_course_data(self, grading_period: str, course_id: int) -> dict[str, Any]:
-        if course_data := self._course_data.get((grading_period, course_id)):
+    async def fetch_course_data(
+        self,
+        grading_period: str,
+        course_id: int,
+        *,
+        respect_cache: bool = True,
+    ) -> dict[str, Any]:
+        if respect_cache and (course_data := self._course_data.get((grading_period, course_id))):
             if 'assignments' in course_data:
                 return course_data
 
@@ -229,9 +235,13 @@ class StudentVueScraper:
         self._course_data[grading_period, course_id] = course_data
         return course_data
 
-    async def fetch_all_courses(self, grading_period: str) -> list[dict[str, Any]]:  # Slow query
+    # Slow query
+    async def fetch_all_courses(self, grading_period: str, *, respect_cache: bool = True) -> list[dict[str, Any]]:
         courses = await self.fetch_courses_metadata(grading_period)
-        return [await self.fetch_course_data(grading_period, course['ID']) for course in courses]
+        return [
+            await self.fetch_course_data(grading_period, course['ID'], respect_cache=respect_cache)
+            for course in courses
+        ]
 
     async def fetch_student_info(self) -> dict[str, Any]:
         if self.student_info:
@@ -365,7 +375,7 @@ async def get_courses(request: web.Request) -> web.Response:
     if grading_period not in scraper.grading_periods:
         return web.Response(text='Invalid grading period', status=400)
 
-    out = msgpack.dumps(await scraper.fetch_all_courses(grading_period))
+    out = msgpack.dumps(await scraper.fetch_all_courses(grading_period, respect_cache=False))
     return web.Response(body=out)
 
 
@@ -381,7 +391,7 @@ async def get_course(request: web.Request) -> web.Response:
         return web.Response(text='invalid grading period', status=400)
 
     try:
-        out = msgpack.dumps(await scraper.fetch_course_data(grading_period, course_id))
+        out = msgpack.dumps(await scraper.fetch_course_data(grading_period, course_id, respect_cache=False))
     except KeyError:
         return web.Response(text='invalid course ID', status=400)
     return web.Response(body=out)
