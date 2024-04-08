@@ -29,6 +29,6 @@ gitignore
 Thumbs.db
 
 
-package-lock.json
+# package-lock.json
 pnpm-lock.yaml
 _transform/
