@@ -71,7 +71,7 @@ function AssignmentDetails(props: AssignmentProps) {
       <td class="text-center">
         <div class="w-full flex justify-center">
           <Dropdown options={
-            <div class="bg-bg-1 w-36">
+            <div class="bg-bg-1 w-36 break-words">
               <For each={api.policy.measureTypes}>
                 {measureType => (
                   <button
