@@ -77,7 +77,7 @@ export function GradesInner(props: { gradingPeriod: string }) {
           </For>
         </div>
       </div>
-      <p class="px-4 pt-2 pb-4 text-center text-xs text-fg/50">
+      <p class="px-4 pt-2 pb-4 text-center text-xs text-fg/30">
         Tip: You can access a firewalled version of TurboVUE on your school Chromebook at&nbsp;
         <a href="https://turbo-vue.github.io" class="font-bold">https://turbo-vue.github.io</a>
       </p>
