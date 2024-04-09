@@ -168,8 +168,10 @@ class StudentVueScraper:
                 self._course_focus_data[grading_period, course_id] = json.loads(btn['data-focus'])
 
             div = gradebook.find('div', {'data-guid': str(course_id), 'data-mark-gu': True})
-            course['markPreview'] = div.find('span', class_='mark').text
-            course['scorePreview'] = div.find('span', class_='score').text
+            mark = div.find('span', class_='mark')
+            score = div.find('span', class_='score')
+            course['markPreview'] = mark and mark.text
+            course['scorePreview'] = score and score.text
 
     async def fetch_grading_policy(self) -> dict[str, Any]:
         async with self.post(

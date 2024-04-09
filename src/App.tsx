@@ -6,6 +6,7 @@ import Layout from "./Layout";
 
 import 'tippy.js/dist/tippy.css';
 import 'tippy.js/animations/shift-away.css';
+import Loading from "./components/Loading";
 
 const Login = lazy(() => import('./pages/Login'));
 const SelectDistrict = lazy(() => import('./pages/SelectDistrict'));
@@ -37,11 +38,7 @@ function RefreshMount() {
     }
   })
 
-  return (
-    <div class="w-full h-full flex flex-col items-center justify-center font-title text-2xl font-black animate-pulse">
-      Loading...
-    </div>
-  )
+  return <Loading />
 }
 
 const Grades = lazy(() => import('./pages/Grades'))

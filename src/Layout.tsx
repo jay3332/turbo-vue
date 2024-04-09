@@ -3,7 +3,7 @@ import {
   createSignal,
   ErrorBoundary,
   Match,
-  onMount, ParentProps,
+  onMount, ParentProps, Show,
   Signal, Switch,
 } from "solid-js";
 import {A, Navigate, Route, Router, useLocation, useParams} from "@solidjs/router";
@@ -53,6 +53,7 @@ function Nav(props: {
 
 function HomeSidebar(props: { tabSignal: Signal<Tab> }) {
   const [tab, setTab] = props.tabSignal
+  const params = useParams()
 
   return (
     <div classList={{
@@ -61,7 +62,7 @@ function HomeSidebar(props: { tabSignal: Signal<Tab> }) {
       <Switch>
         <Match when={tab() === Tab.Home}>
           <Nav
-            href="/"
+            href={params.gradingPeriod ? '/grades/' + params.gradingPeriod : '/'}
             label="Grades"
             icon={SolidSquare}
             check={(path) => path === '/' || path.startsWith('/grades')}
@@ -152,9 +153,6 @@ export default function Layout(props: ParentProps) {
     if (pathname === '/') return 'Grades'
     if (pathname.startsWith('/grades')) {
       if (params.courseId) return 'Course Details'
-      if (params.gradingPeriod) {
-        return 'Grades: ' + api.gradingPeriods[params.gradingPeriod].Name
-      }
       return 'Grades'
     }
   })
@@ -188,7 +186,10 @@ export default function Layout(props: ParentProps) {
         "mobile:opacity-50 md:w-[calc(100%-20rem)]": showSidebar(),
       }}>
         <div class="flex flex-grow w-full gap-x-2 pt-2 px-2">
-          <div class="flex flex-grow items-center bg-bg-0/80 backdrop-blur h-14 rounded-xl">
+          <div classList={{
+            "flex flex-grow items-center bg-bg-0/80 backdrop-blur h-14 rounded-xl": true,
+            "mobile:hidden": params.courseId != null,
+          }}>
             <button
               use:tooltip={showSidebar() ? "Collapse Sidebar" : "Show Sidebar"}
               class="inline-flex py-2 mx-4 transition-transform duration-200 group"

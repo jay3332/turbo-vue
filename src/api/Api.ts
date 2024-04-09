@@ -22,6 +22,11 @@ export function createAssignment(base: Assignment, isCustom: boolean): CustomAss
   return {...base, isCustom}
 }
 
+export interface CustomCourse {
+  assignments: CustomAssignment[]
+  needsRollback: boolean
+}
+
 export class Api {
   token: string
   courseOrders: ReactiveMap<string, CourseMetadata[]>
@@ -29,7 +34,7 @@ export class Api {
   policy: GradingPolicy
   gradingPeriods: Record<string, GradingPeriod>
   student: StudentInfo
-  assignments: ReactiveMap<string, CustomAssignment[]>
+  modifiedCourses: ReactiveMap<string, CustomCourse>
 
   constructor(loginResponse: LoginResponse) {
     this.token = loginResponse.token
@@ -38,7 +43,7 @@ export class Api {
     this.policy = loginResponse.policy
     this.student = loginResponse.student
     this.gradingPeriods = loginResponse.gradingPeriods
-    this.assignments = new ReactiveMap()
+    this.modifiedCourses = new ReactiveMap()
 
     this.courseOrders.set(this.defaultGradingPeriod, loginResponse.courseOrder)
     let {} = this.updateAllCourses()
@@ -115,17 +120,24 @@ export class Api {
     gradingPeriod ??= this.defaultGradingPeriod;
     const {data, error} = await this.request(`/grades/${gradingPeriod}/courses`);
     if (error) throw new Error(error);
+    this.populateAllCourses(gradingPeriod, data)
+  }
 
-    for (const course of data) {
+  populateAllCourses(gradingPeriod: string, courses: Course[]) {
+    for (const course of courses) {
       this.courses.set(`${gradingPeriod}:${course.classId}`, course);
-      this.populateAssignments(gradingPeriod, course)
+      this.populateModifiedCourse(gradingPeriod, course)
     }
   }
 
-  populateAssignments(gradingPeriod: string, course: Course) {
-    this.assignments.set(`${gradingPeriod}:${course.classId}`, course.assignments.sort((a, b) => (
+  populateModifiedCourse(gradingPeriod: string, course: Course) {
+    const assignments = course.assignments.sort((a, b) => (
       new Date(b.dueDate).getTime() - new Date(a.dueDate).getTime()
-    )).map(assignment => createAssignment(assignment, false)))
+    )).map(assignment => createAssignment(assignment, false))
+
+    this.modifiedCourses.set(`${gradingPeriod}:${course.classId}`, {
+      assignments, needsRollback: false
+    })
   }
 
   private totalAssignmentPointsBy(
@@ -134,7 +146,7 @@ export class Api {
     courseId: number,
     categoryId?: number,
   ): number {
-    const assignments = this.assignments.get(`${gradingPeriod}:${courseId}`)!;
+    const assignments = this.modifiedCourses.get(`${gradingPeriod}:${courseId}`)!.assignments;
     return assignments
       .filter(assignment =>
         assignment.isForGrading

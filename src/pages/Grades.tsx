@@ -1,9 +1,10 @@
 import {getApi} from "../api/Api";
-import {createMemo, For} from "solid-js";
+import {createEffect, createMemo, For, Show} from "solid-js";
 import {CourseMetadata} from "../api/types";
 import Icon from "../components/icons/Icon";
 import LocationDot from "../components/icons/svg/LocationDot";
 import {A, useParams} from "@solidjs/router";
+import Loading from "../components/Loading";
 
 function sanitizeGradePreview(preview: string): number {
   if (preview.endsWith('%')) preview = preview.slice(0, -1)
@@ -16,7 +17,7 @@ export function CourseGrade({ gradingPeriod, course }: { gradingPeriod: string, 
   const resolved = createMemo(() => api.courses.get(`${gradingPeriod}:${course.ID}`))
   const ratio = createMemo(() => {
     if (!resolved()) return sanitizeGradePreview(course.scorePreview) / 100
-    else if (!api.assignments.has(`${gradingPeriod}:${course.ID}`))
+    else if (!api.modifiedCourses.has(`${gradingPeriod}:${course.ID}`))
       return resolved()!.classGrades[0].totalWeightedPercentage / 100
 
     return api.calculateWeightedPointRatio(gradingPeriod, course.ID)
@@ -28,7 +29,7 @@ export function CourseGrade({ gradingPeriod, course }: { gradingPeriod: string, 
   const mark = createMemo(() => {
     if (!resolved()) return course.markPreview
     const grade = resolved()!.classGrades[0]
-    if (!api.assignments.has(`${gradingPeriod}:${course.ID}`))
+    if (!api.modifiedCourses.has(`${gradingPeriod}:${course.ID}`))
       return grade.manualMark ?? grade.calculatedMark
 
     return api.calculateMark(grade.reportCardScoreTypeId, ratio())
@@ -44,18 +45,16 @@ export function CourseGrade({ gradingPeriod, course }: { gradingPeriod: string, 
   )
 }
 
-export default function Grades() {
+export function GradesInner(props: { gradingPeriod: string }) {
   const api = getApi()!
-  let { gradingPeriod } = useParams()
-  gradingPeriod ??= api.defaultGradingPeriod
 
   return (
     <div class="flex flex-col p-2">
       <div class="flex gap-2 flex-wrap">
-        <For each={api.courseOrders.get(gradingPeriod)}>
+        <For each={api.courseOrders.get(props.gradingPeriod)}>
           {(course: CourseMetadata) => (
             <A
-              href={`/grades/${gradingPeriod}/${course.ID}`}
+              href={`/grades/${props.gradingPeriod}/${course.ID}`}
               class="flex justify-between items-center p-4 rounded-lg w-full lg:w-[calc(50%-0.25rem)] bg-bg-0/50
                 transition hover:bg-bg-3/80"
             >
@@ -69,11 +68,34 @@ export default function Grades() {
                   </span>
                 </span>
               </div>
-              <CourseGrade gradingPeriod={gradingPeriod} course={course} />
+              <CourseGrade gradingPeriod={props.gradingPeriod} course={course} />
             </A>
           )}
         </For>
       </div>
     </div>
+  )
+}
+
+export default function Grades() {
+  const api = getApi()!
+  const params = useParams()
+  const gradingPeriod = createMemo(() => params.gradingPeriod ?? api.defaultGradingPeriod)
+
+  createEffect(async () => {
+    if (!api.courseOrders.has(gradingPeriod())) {
+      const { data } = await api.request(`/grades/${gradingPeriod()}/courses?include_course_order=1`)
+      if (data) {
+        const { courseOrder, courses } = data
+        api.courseOrders.set(gradingPeriod(), courseOrder)
+        api.populateAllCourses(gradingPeriod(), courses)
+      }
+    }
+  })
+
+  return (
+    <Show when={api.courseOrders.has(gradingPeriod())} fallback={<Loading />}>
+      <GradesInner gradingPeriod={gradingPeriod()} />
+    </Show>
   )
 }
