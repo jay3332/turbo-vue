@@ -375,7 +375,14 @@ async def get_courses(request: web.Request) -> web.Response:
     if grading_period not in scraper.grading_periods:
         return web.Response(text='Invalid grading period', status=400)
 
-    out = msgpack.dumps(await scraper.fetch_all_courses(grading_period, respect_cache=False))
+    data = await scraper.fetch_all_courses(grading_period, respect_cache=False)
+    if request.query.get('include_course_order'):
+        data = {
+            'courseOrder': await scraper.fetch_courses_metadata(grading_period),
+            'courses': data,
+        }
+
+    out = msgpack.dumps(data)
     return web.Response(body=out)
 
 
