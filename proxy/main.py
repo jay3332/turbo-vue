@@ -129,7 +129,11 @@ class StudentVueScraper:
             'control': 'Gradebook_SchoolClasses',
             'parameters': self._create_gp_focus_payload(self.grading_periods[grading_period]),
         }
-        async with self.post('/service/PXP2Communication.asmx/LoadControl', json=payload) as response:
+        async with self.post(
+            '/service/PXP2Communication.asmx/LoadControl',
+            json={'request': payload},
+            headers={'Referer': self.host + '/PXP2_GradeBook.aspx?AGU=0'}
+        ) as response:
             data = await response.json()
             self._register_gradebook(data['d']['Data']['html'], grading_period)
         return self._gradebooks[grading_period]
@@ -279,7 +283,7 @@ class StudentVueScraper:
 
 
 @routes.get('/')
-async def hello() -> web.Response:
+async def hello(_: web.Request) -> web.Response:
     return web.Response(text='Hello, world!')
 
 
