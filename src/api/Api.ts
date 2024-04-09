@@ -165,20 +165,22 @@ export class Api {
   }
 
   calculateWeightedPointRatio(gradingPeriod: string, courseId: number): number {
-    return this.policy.measureTypes
-      .map(type => (
-        this.totalAssignmentPoints(gradingPeriod, courseId, type.id)
-        / this.maxAssignmentPoints(gradingPeriod, courseId, type.id)
-        * type.weight
-        / 100
-      ))
-      .filter(weight => !isNaN(weight))
-      .reduce((acc, weight) => acc + weight, 0)
+    const [weight, ratio] = this.policy.measureTypes
+      .map(type => [type.id, type.weight / 100, this.maxAssignmentPoints(gradingPeriod, courseId, type.id)])
+      .filter(([_id, _weight, total]) => !!total)
+      .map(([id, weight, total]) => [
+        weight,
+        this.totalAssignmentPoints(gradingPeriod, courseId, id) / total * weight,
+      ])
+      .filter(([_weight, ratio]) => !isNaN(ratio))
+      .reduce(([a, b], [weight, ratio]) => [a + weight, b + ratio], [0, 0])
+
+    return ratio / weight // Normalize ratio (e.g. if cum_weights=0.5, ratio should be normalized as ratio / 0.5)
   }
 
   calculateMark(scoreType: number, ratio: number): string {
     const policy = this.policy.reportCardScoreTypes.find((type) => type.id === scoreType)!;
-    if (!policy || policy.max == -1) return 'N/A'; // No max, so no percentage
+    if (isNaN(ratio) || !policy || policy.max == -1) return 'N/A'; // No max, so no percentage
 
     for (const boundary of policy.details) {
       if (ratio >= boundary.lowScore / policy.max) return boundary.score;

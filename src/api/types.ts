@@ -116,7 +116,7 @@ export interface Assignment {
   gradeBookId: number,
   gradeBookScoreTypeId: number,
   gradingPeriodId: number,
-  isForGrading: true,
+  isForGrading: boolean,
   maxScore: NumericString,
   maxValue: number,
   measureTypeId: number,

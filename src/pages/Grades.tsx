@@ -40,7 +40,9 @@ export function CourseGrade({ gradingPeriod, course }: { gradingPeriod: string, 
   return (
     <div class="flex flex-col items-center w-12">
       <span class="font-title text-xl" style={style()}>{mark()}</span>
-      <span class="text-sm" style={style()}>{fmt.format(ratio())}</span>
+      <Show when={!isNaN(ratio())}>
+        <span class="text-sm" style={style()}>{fmt.format(ratio())}</span>
+      </Show>
     </div>
   )
 }

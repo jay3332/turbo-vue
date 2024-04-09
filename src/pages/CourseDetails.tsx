@@ -1,12 +1,14 @@
-import {A, useNavigate, useParams} from "@solidjs/router";
+import {useNavigate, useParams} from "@solidjs/router";
 import {createAssignment, CustomAssignment, getApi} from "../api/Api";
 import {Accessor, createEffect, createMemo, createSignal, For, on, Setter, Show} from "solid-js";
 import Icon from "../components/icons/Icon";
 import Xmark from "../components/icons/svg/Xmark";
-import Dropdown from "../components/Dropdown";
 import {MeasureType} from "../api/types";
 import Plus from "../components/icons/svg/Plus";
 import Loading from "../components/Loading";
+import ChevronUp from "../components/icons/svg/ChevronUp";
+
+const NOT_FOR_GRADING = 'not-for-grading'
 
 function isMCPS() {
   const host = localStorage.getItem('preferredHost')
@@ -41,17 +43,20 @@ function AssignmentDetails(props: AssignmentProps) {
   const [score, setScore] = createSignal(props.assignment.score)
   const [maxScore, setMaxScore] = createSignal(props.assignment.maxScore)
   const [measureTypeId, setMeasureTypeId] = createSignal(props.assignment.measureTypeId)
+  const [forGrading, setForGrading] = createSignal(props.assignment.isForGrading)
 
   const ratio = createMemo(() => parseFloat(score()!) / parseFloat(maxScore()))
-  const formattedPercent = createMemo(() => new Intl.NumberFormat('en-US', {style: 'percent', maximumFractionDigits: 2}).format(ratio()))
+  const formattedPercent = createMemo(() => isNaN(ratio())
+    ? '-'
+    : new Intl.NumberFormat('en-US', {style: 'percent', maximumFractionDigits: 2}).format(ratio())
+  )
 
   const dueDate = props.assignment.dueDate
   const scoreType = props.assignment.reportCardScoreTypeId
-  const forGrading = props.assignment.isForGrading
 
   createEffect(on(
-    [name, category, score, maxScore, measureTypeId],
-    ([name, category, score, maxScore, measureTypeId]) => {
+    [name, category, score, maxScore, measureTypeId, forGrading],
+    ([name, category, score, maxScore, measureTypeId, forGrading]) => {
       const updated = {
         ...props.assignment,
         name,
@@ -59,6 +64,7 @@ function AssignmentDetails(props: AssignmentProps) {
         score,
         maxScore,
         measureTypeId,
+        isForGrading: forGrading,
       }
       const course = api.modifiedCourses.get(key)!
       const modified = course.assignments.map((old, j) => (
@@ -70,6 +76,8 @@ function AssignmentDetails(props: AssignmentProps) {
     { defer: true }
   ))
 
+  let categorySelectRef: HTMLSelectElement | null = null
+
   return (
     <tr class="transition hover:bg-fg/5 [&+tr]:border-t-[1px] border-bg-3">
       <td class="text-sm px-2 py-3 break-words">
@@ -77,32 +85,41 @@ function AssignmentDetails(props: AssignmentProps) {
         <span class="font-light text-xs text-fg/60">{dueDate}</span>
       </td>
       <td class="text-center">
-        <div class="w-full flex justify-center">
-          <Dropdown options={
-            <div class="bg-bg-1 w-36 break-words">
-              <For each={api.policy.measureTypes}>
-                {measureType => (
-                  <button
-                    class="block w-full text-sm px-3 py-1.5 hover:bg-fg/10 transition"
-                    onClick={() => {
-                      setCategory(measureType.name)
-                      setMeasureTypeId(measureType.id)
-                    }}
-                  >
-                    {measureType.name}
-                  </button>
-                )}
-              </For>
-            </div>
-          }>
-            {forGrading ? (
+        <div class="w-full relative">
+          <select
+            name="category"
+            class="absolute opacity-0 inset-0 w-full h-full z-50 cursor-pointer"
+            ref={categorySelectRef!}
+            onChange={() => {
+              if (categorySelectRef!.value == NOT_FOR_GRADING)
+                return setForGrading(false)
+
+              const value = parseInt(categorySelectRef!.value)
+              setMeasureTypeId(value)
+              const name = api.policy.measureTypes.find(m => m.id == value)!.name
+              setCategory(name)
+              setForGrading(true)
+            }}
+          >
+            <For each={api.policy.measureTypes}>
+              {measureType => (
+                <option value={measureType.id} selected={forGrading() && measureTypeId() == measureType.id}>
+                  {measureType.name}
+                </option>
+              )}
+            </For>
+            <option value={NOT_FOR_GRADING} selected={!forGrading()}>Not for Grading</option>
+          </select>
+          <button class="w-full flex items-center justify-center">
+            {forGrading() ? (
               <span class="font-light text-sm">
                 {sanitizeCategoryType(category())}
               </span>
             ) : (
               <span class="font-light text-sm text-highlight">Not for Grading</span>
             )}
-          </Dropdown>
+            <Icon icon={ChevronUp} class="transform rotate-180 ml-1.5 w-3 h-3 fill-fg" />
+          </button>
         </div>
       </td>
       <td class="text-center">
@@ -180,33 +197,34 @@ function WeightProgressBar(props: WPBProps) {
   const api = getApi()!
   const points = createMemo(() => api.totalAssignmentPoints(props.gradingPeriod, props.courseId, props.measureType.id))
   const maxPoints = createMemo(() => api.maxAssignmentPoints(props.gradingPeriod, props.courseId, props.measureType.id))
-  if (!points() || !maxPoints()) return null
 
   const ratio = () => points() / maxPoints()
   const style = () => api.calculateScoreStyle(props.scoreType, ratio())
 
   return (
-    <div class="relative flex-grow mx-2 mt-2 bg-bg-3/80 rounded-lg h-12 overflow-hidden">
-      <div
-        class="opacity-20 h-full"
-        style={{ width: `${Math.max(0.0, Math.min(1.0, ratio())) * 100}%`, background: `rgb(var(--c-${style()}))` }}
-      />
-      <div class="absolute z-10 flex px-3 inset-0 w-full h-full items-center justify-between">
-        <h2 class="font-title font-bold text-medium">{props.measureType.name}</h2>
-        <div class="flex items-center">
-          <div class="mt-1 mr-8 mobile-xs:mr-0">
-            <sup class="font-bold text-base text-right">
-              {points()}
-            </sup>
-            <span class="text-fg/70 font-light text-lg">&frasl;</span>
-            <sub class="font-light text-fg/60">{maxPoints()}</sub>
+    <Show when={points() || maxPoints()}>
+      <div class="relative flex-grow mx-2 mt-2 bg-bg-3/80 rounded-lg h-12 overflow-hidden">
+        <div
+          class="opacity-20 h-full"
+          style={{ width: `${Math.max(0.0, Math.min(1.0, ratio())) * 100}%`, background: `rgb(var(--c-${style()}))` }}
+        />
+        <div class="absolute z-10 flex px-3 inset-0 w-full h-full items-center justify-between">
+          <h2 class="font-title font-bold text-medium">{props.measureType.name}</h2>
+          <div class="flex items-center">
+            <div class="mt-1 mr-8 mobile-xs:mr-0">
+              <sup class="font-bold text-base text-right">
+                {points()}
+              </sup>
+              <span class="text-fg/70 font-light text-lg">&frasl;</span>
+              <sub class="font-light text-fg/60">{maxPoints()}</sub>
+            </div>
+            <span class="w-14 text-right mobile:w-10 mobile:text-sm mobile-xs:hidden">
+              {Intl.NumberFormat('en-US', {style: 'percent', maximumFractionDigits: 2}).format(ratio())}
+            </span>
           </div>
-          <span class="w-14 text-right mobile:w-10 mobile:text-sm mobile-xs:hidden">
-            {Intl.NumberFormat('en-US', {style: 'percent', maximumFractionDigits: 2}).format(ratio())}
-          </span>
         </div>
       </div>
-    </div>
+    </Show>
   )
 }
 
@@ -290,11 +308,13 @@ export function CourseDetailsInner() {
             <span class="text-fg/60">{metadata().TeacherName}, Room {metadata().room}</span>
           </div>
         </div>
-        <div class="flex flex-col items-center">
+        <div class="flex flex-col items-center justify-center">
           <span class="font-title text-3xl" style={style()}>{mark()}</span>
-          <span class="text-sm" style={style()}>
-            {new Intl.NumberFormat('en-US', {style: 'percent', maximumFractionDigits: 2}).format(ratio())}
-          </span>
+          <Show when={!isNaN(ratio())}>
+            <span class="text-sm" style={style()}>
+              {new Intl.NumberFormat('en-US', {style: 'percent', maximumFractionDigits: 2}).format(ratio())}
+            </span>
+          </Show>
         </div>
       </div>
       <div class="flex flex-col">
@@ -318,7 +338,7 @@ export function CourseDetailsInner() {
                 <th scope="col" class="px-4">Category</th>
                 <th scope="col" class="px-4">Score</th>
                 <th class="lg:table-cell hidden">%</th>
-                <th scope="col" class="px-4">
+                <th scope="col" class="px-4 mobile:px-1">
                   <button class="flex items-center justify-center w-full h-full" onClick={() => {
                     const measureType = api.policy.measureTypes[0]
                     const dummyAssignment = createAssignment({
