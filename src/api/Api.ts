@@ -11,6 +11,7 @@ import {
 } from "./types";
 import {createRoot, createSignal} from "solid-js";
 import {ReactiveMap} from "@solid-primitives/map";
+import {isMCPS} from "../utils";
 
 export const BASE_URL = 'https://turbovue-api.jay3332.tech'
 
@@ -182,7 +183,15 @@ export class Api {
     const policy = this.policy.reportCardScoreTypes.find((type) => type.id === scoreType)!;
     if (isNaN(ratio) || !policy || policy.max == -1) return 'N/A'; // No max, so no percentage
 
-    for (const boundary of policy.details) {
+    if (isMCPS()) {
+      if (ratio >= 0.895) return 'A'
+      else if (ratio >= 0.795) return 'B'
+      else if (ratio >= 0.695) return 'C'
+      else if (ratio >= 0.595) return 'D'
+      else return 'E'
+    }
+
+    for (const boundary of policy.details.sort((a, b) => b.lowScore - a.lowScore)) {
       if (ratio >= boundary.lowScore / policy.max) return boundary.score;
     }
     return 'N/A';
@@ -235,6 +244,16 @@ export class Api {
     if (policy.max == -1) return 'fg'; // No max, so no percentage
     if (ratio >= 1.0) return 'scale-6';
     if (ratio <= 0.0) return 'scale-0';
+
+    if (isMCPS()) {
+      if (isNaN(ratio)) return 'fg'
+      else if (ratio >= 0.895) return 'scale-5'
+      else if (ratio >= 0.795) return 'scale-4'
+      else if (ratio >= 0.695) return 'scale-3'
+      else if (ratio >= 0.595) return 'scale-2'
+      else return 'scale-1'
+    }
+
     // synergy measures in hundredths of a percent
     ratio = Math.round(ratio * 10_000) / 10_000;
 
