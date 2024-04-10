@@ -355,8 +355,12 @@ export function CourseDetailsInner() {
         </For>
       </div>
       <Show when={assignments().length} fallback={
-        <p class="font-title text-lg font-bold text-fg/60 flex flex-grow items-center justify-center">
-          No assignments yet...
+        <p class="flex flex-col flex-grow gap-y-2 items-center justify-center">
+          <span class="font-title text-lg font-bold text-fg/60">No assignments yet...</span>
+          <button class="btn btn-primary btn-sm" onClick={addAssignment}>
+            <Icon icon={Plus} class="w-4 h-4 mr-2 fill-fg" />
+            Add mock assignment
+          </button>
         </p>
       }>
         <div class="flex flex-col m-2 relative">
