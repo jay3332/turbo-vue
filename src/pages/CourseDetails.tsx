@@ -9,6 +9,9 @@ import Loading from "../components/Loading";
 import ChevronUp from "../components/icons/svg/ChevronUp";
 import {isMCPS} from "../utils";
 
+import tooltip from "../directives/tooltip";
+void tooltip
+
 const NOT_FOR_GRADING = 'not-for-grading'
 
 function sanitizeCategoryType(category: string) {
@@ -34,7 +37,7 @@ function AssignmentDetails(props: AssignmentProps) {
   const {gradingPeriod, courseId} = useParams()
   const key = `${gradingPeriod}:${courseId}`
 
-  const [name, setName] = createSignal(props.assignment.name)
+  const [name, setName] = createSignal(props.assignment.name ?? 'Unnamed Assignment')
   const [category, setCategory] = createSignal(props.assignment.category)
   const [score, setScore] = createSignal(props.assignment.score)
   const [maxScore, setMaxScore] = createSignal(props.assignment.maxScore)
@@ -77,7 +80,7 @@ function AssignmentDetails(props: AssignmentProps) {
   return (
     <tr class="transition hover:bg-fg/5 [&+tr]:border-t-[1px] border-bg-3">
       <td class="text-sm px-2 py-3 break-words">
-        <h2>{name() ?? 'Unnamed Assignment'}</h2>
+        <h2>{name()}</h2>
         <span class="font-light text-xs text-fg/60">{dueDate}</span>
       </td>
       <td class="text-center">
@@ -295,6 +298,32 @@ export function CourseDetailsInner() {
     { defer: true }
   ))
 
+  const addAssignment = () => {
+    const measureType = api.policy.measureTypes[0]
+    const dummyAssignment = createAssignment({
+      category: measureType.name,
+      commentCode: null,
+      dueDate: 'Custom Assignment',
+      excused: false,
+      gradeBookCategoryId: 0,
+      gradeBookId: 0,
+      gradeBookScoreTypeId: scoreType(),
+      gradingPeriodId: 0,
+      isForGrading: true,
+      maxScore: '0',
+      maxValue: 0,
+      measureTypeId: measureType.id,
+      name: 'New Assignment',
+      reportCardScoreTypeId: scoreType(),
+      score: '0',
+      studentId: api.policy.students[0].id,
+      week: '',
+    }, true)
+    const modified = [dummyAssignment, ...assignments()]
+    setAssignments(modified)
+    setNeedsRollback(true)
+  }
+
   return (
     <>
       <div class="flex justify-between p-4 bg-bg-0/80 mx-2 mt-2 rounded-lg">
@@ -325,48 +354,37 @@ export function CourseDetailsInner() {
           )}
         </For>
       </div>
-      <div class="flex flex-col m-2">
-        <div class="overflow-hidden rounded-lg">
-          <table class="w-full">
-            <thead class="bg-bg-0 font-title">
+      <Show when={assignments().length} fallback={
+        <p class="font-title text-lg font-bold text-fg/60 flex flex-grow items-center justify-center">
+          No assignments yet...
+        </p>
+      }>
+        <div class="flex flex-col m-2 relative">
+          <button
+            class="hidden absolute group hover:bg-accent mobile:flex items-center justify-center
+              w-7 h-7 rounded-full top-0 right-0 -m-1 bg-3 z-40"
+            onClick={addAssignment}
+            use:tooltip={{ content: 'Add Assignment' }}
+          >
+            <Icon icon={Plus} class="fill-fg w-4 h-4" />
+          </button>
+          <div class="overflow-hidden rounded-lg">
+            <table class="w-full">
+              <thead class="bg-bg-0 font-title">
               <tr class="[&>th]:py-3">
                 <th scope="col" class="w-1/2">Assignment</th>
                 <th scope="col" class="px-4">Category</th>
                 <th scope="col" class="px-4">Score</th>
                 <th class="lg:table-cell hidden">%</th>
-                <th scope="col" class="px-4 mobile:px-1">
-                  <button class="flex items-center justify-center w-full h-full" onClick={() => {
-                    const measureType = api.policy.measureTypes[0]
-                    const dummyAssignment = createAssignment({
-                      category: measureType.name,
-                      commentCode: null,
-                      dueDate: 'Custom Assignment',
-                      excused: false,
-                      gradeBookCategoryId: 0,
-                      gradeBookId: 0,
-                      gradeBookScoreTypeId: scoreType(),
-                      gradingPeriodId: 0,
-                      isForGrading: true,
-                      maxScore: '0',
-                      maxValue: 0,
-                      measureTypeId: measureType.id,
-                      name: 'New Assignment',
-                      reportCardScoreTypeId: scoreType(),
-                      score: '0',
-                      studentId: api.policy.students[0].id,
-                      week: '',
-                    }, true)
-                    const modified = [dummyAssignment, ...assignments()]
-                    setAssignments(modified)
-                    setNeedsRollback(true)
-                  }}>
-                    <Icon icon={Plus} class="fill-fg w-4 h-4 hover:fill-accent transition" tooltip="Add Assignment" />
+                <th scope="col" class="px-2 mobile:px-0">
+                  <button class="mobile:hidden flex items-center justify-center w-full h-full" onClick={addAssignment}>
+                    <Icon icon={Plus} class="fill-fg w-4 h-4 transition hover:fill-accent" tooltip="Add Assignment" />
                   </button>
                 </th>
               </tr>
-            </thead>
-            <tbody>
-              <For each={assignments()} fallback="No assignments yet!">
+              </thead>
+              <tbody>
+              <For each={assignments()}>
                 {(assignment, idx) => (
                   <AssignmentDetails
                     assignment={assignment}
@@ -376,10 +394,11 @@ export function CourseDetailsInner() {
                   />
                 )}
               </For>
-            </tbody>
-          </table>
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
+      </Show>
     </>
   )
 }

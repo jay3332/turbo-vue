@@ -8,7 +8,7 @@ import Loading from "../components/Loading";
 import {isMCPS} from "../utils";
 
 function sanitizeGradePreview(preview: string): number {
-  if (preview.endsWith('%')) preview = preview.slice(0, -1)
+  if (preview?.endsWith('%')) preview = preview.slice(0, -1)
   return parseFloat(preview)
 }
 
