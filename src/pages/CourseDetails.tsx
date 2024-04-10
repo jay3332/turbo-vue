@@ -236,6 +236,14 @@ export default function CourseDetails() {
   const key = () => `${gradingPeriod()}:${params.courseId}`
 
   createEffect(async () => {
+    if (!api.courseOrders.has(gradingPeriod())) {
+      const { data } = await api.request(`/grades/${gradingPeriod()}`)
+      if (data) {
+        api.courseOrders.set(gradingPeriod(), data)
+      } else {
+        navigate('/')
+      }
+    }
     if (!api.courses.has(key())) {
       const { data } = await api.request(`/grades/${gradingPeriod()}/courses/${params.courseId}`)
       if (data) {
@@ -319,7 +327,7 @@ export function CourseDetailsInner() {
       studentId: api.policy.students[0].id,
       week: '',
     }, true)
-    const modified = [dummyAssignment, ...assignments()]
+    const modified = [dummyAssignment, ...api.modifiedCourses.get(key())!.assignments]
     setAssignments(modified)
     setNeedsRollback(true)
   }
