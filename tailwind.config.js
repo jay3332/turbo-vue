@@ -26,7 +26,6 @@ module.exports = {
           hover: variable('primary-hover'),
           content: variable('primary-fg'),
         },
-        secondary: variable('secondary'),
         success: {
           DEFAULT: variable('success'),
           hover: variable('success-hover'),
@@ -36,11 +35,6 @@ module.exports = {
           DEFAULT: variable('danger'),
           hover: variable('danger-hover'),
           content: variable('danger-fg'),
-        },
-        neutral: {
-          DEFAULT: variable('neutral'),
-          hover: variable('neutral-hover'),
-          content: variable('neutral-fg'),
         },
         link: {
           DEFAULT: variable('link'),

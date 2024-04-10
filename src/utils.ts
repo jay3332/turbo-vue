@@ -11,3 +11,8 @@ export function someIterator<T>(iter: IterableIterator<T>, predicate: (item: T) 
   for (const el of iter) if (predicate(el)) return true
   return false
 }
+
+export function isMCPS() {
+  const host = localStorage.getItem('preferredHost')
+  return !host || JSON.parse(host).host === 'https://md-mcps-psv.edupoint.com'
+}

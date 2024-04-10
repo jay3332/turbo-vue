@@ -188,6 +188,48 @@ export class Api {
     return 'N/A';
   }
 
+  private mcpsGpaValue(mark: string, weighted: boolean): number | null {
+    const extra = weighted ? 1 : 0
+    switch (mark) {
+      case 'A': return 4 + extra
+      case 'B': return 3 + extra
+      case 'C': return 2 + extra
+      case 'D': return 1
+      case 'E': return 0
+      default: return null
+    }
+  }
+
+  isMcpsCourseWeighted(name: string): boolean {
+    return ['AP', 'Hon', 'Honors', 'Adv', 'Advanced', 'Mag', 'Magnet', 'IB'].some(term => name.includes(term))
+  }
+
+  calculateMcpsGpa(gradingPeriod: string): { weighted: number, unweighted: number } {
+    let totalWeighted = 0, totalUnweighted = 0, count = 0
+    const getMark = (ratio: number) => this.calculateMark(this.policy.defaultReportCardScoreTypeId, ratio)
+
+    for (const course of this.courseOrders.get(gradingPeriod)!) {
+      const modified = this.modifiedCourses.get(`${gradingPeriod}:${course.ID}`)
+      const mark = modified != null
+        ? getMark(this.calculateWeightedPointRatio(gradingPeriod, course.ID))
+        : (
+          /\d/.test(course.markPreview) ? getMark(parseFloat(course.markPreview)) : course.markPreview
+        )
+
+      const weighted = this.mcpsGpaValue(mark, this.isMcpsCourseWeighted(course.Name))
+      if (weighted) {
+        totalWeighted += weighted
+        totalUnweighted += this.mcpsGpaValue(mark, false) ?? 0
+        count++
+      }
+    }
+
+    return {
+      weighted: totalWeighted / count,
+      unweighted: totalUnweighted / count,
+    }
+  }
+
   calculateScoreStyle(scoreType: number, ratio: number): string {
     const policy = this.policy.reportCardScoreTypes.find((type) => type.id === scoreType)!;
     if (policy.max == -1) return 'fg'; // No max, so no percentage

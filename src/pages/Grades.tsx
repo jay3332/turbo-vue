@@ -5,6 +5,7 @@ import Icon from "../components/icons/Icon";
 import LocationDot from "../components/icons/svg/LocationDot";
 import {A, useParams} from "@solidjs/router";
 import Loading from "../components/Loading";
+import {isMCPS} from "../utils";
 
 function sanitizeGradePreview(preview: string): number {
   if (preview.endsWith('%')) preview = preview.slice(0, -1)
@@ -47,8 +48,22 @@ export function CourseGrade({ gradingPeriod, course }: { gradingPeriod: string, 
   )
 }
 
+function GPA(props: { label: string, gpa: number }) {
+  return (
+    <div class="flex flex-col items-center">
+      <span class="font-title font-bold text-sm text-fg/60">{props.label}</span>
+      <h2 class="font-medium text-xl" style={{ color: `rgb(var(--c-scale-${Math.floor(props.gpa) + 1}))` }}>{
+        isNaN(props.gpa)
+          ? 'N/A'
+          : props.gpa.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+      }</h2>
+    </div>
+  )
+}
+
 export function GradesInner(props: { gradingPeriod: string }) {
   const api = getApi()!
+  const gpas = createMemo(() => api.calculateMcpsGpa(props.gradingPeriod))
 
   return (
     <div class="flex flex-col h-full justify-between">
@@ -58,7 +73,7 @@ export function GradesInner(props: { gradingPeriod: string }) {
             {(course: CourseMetadata) => (
               <A
                 href={`/grades/${props.gradingPeriod}/${course.ID}`}
-                class="flex justify-between items-center p-4 rounded-lg w-full lg:w-[calc(50%-0.25rem)] bg-bg-0/50
+                class="flex justify-between items-center p-4 rounded-xl w-full lg:w-[calc(50%-0.25rem)] bg-bg-0/50
                   transition hover:bg-bg-3/80"
               >
                 <div class="flex flex-col">
@@ -77,10 +92,14 @@ export function GradesInner(props: { gradingPeriod: string }) {
           </For>
         </div>
       </div>
-      <p class="px-4 pt-2 pb-4 text-center text-xs text-fg/30">
-        Tip: You can access a firewalled version of TurboVUE on your school Chromebook at&nbsp;
-        <a href="https://turbo-vue.github.io" class="font-bold">https://turbo-vue.github.io</a>
-      </p>
+      {isMCPS() && (
+        <div class="px-2 pb-2">
+          <div class="bg-0 p-4 rounded-xl flex justify-center gap-x-[50%] flex-wrap">
+            <GPA label="GPA" gpa={gpas().unweighted} />
+            <GPA label="WGPA" gpa={gpas().weighted} />
+          </div>
+        </div>
+      )}
     </div>
   )
 }

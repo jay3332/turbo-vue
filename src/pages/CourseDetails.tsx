@@ -7,13 +7,9 @@ import {MeasureType} from "../api/types";
 import Plus from "../components/icons/svg/Plus";
 import Loading from "../components/Loading";
 import ChevronUp from "../components/icons/svg/ChevronUp";
+import {isMCPS} from "../utils";
 
 const NOT_FOR_GRADING = 'not-for-grading'
-
-function isMCPS() {
-  const host = localStorage.getItem('preferredHost')
-  return !host || JSON.parse(host).host === 'https://md-mcps-psv.edupoint.com'
-}
 
 function sanitizeCategoryType(category: string) {
   if (!isMCPS()) return category
