@@ -93,8 +93,8 @@ export function GradesInner(props: { gradingPeriod: string }) {
         </div>
       </div>
       {isMCPS() && (
-        <div class="px-2 pb-2">
-          <div class="bg-0 p-4 rounded-xl flex justify-center gap-x-[50%] flex-wrap">
+        <div class="px-2 sm:pb-2">
+          <div class="sm:bg-0 sm:p-4 pt-2 pb-4 px-4 rounded-xl flex justify-center gap-x-[50%] flex-wrap">
             <GPA label="GPA" gpa={gpas().unweighted} />
             <GPA label="WGPA" gpa={gpas().weighted} />
           </div>
