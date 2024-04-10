@@ -84,7 +84,7 @@ function AssignmentDetails(props: AssignmentProps) {
         <div class="w-full relative">
           <select
             name="category"
-            class="absolute opacity-0 inset-0 w-full h-full z-50 cursor-pointer"
+            class="absolute opacity-0 inset-0 w-full h-full z-50 cursor-pointer bg-0"
             ref={categorySelectRef!}
             onChange={() => {
               if (categorySelectRef!.value == NOT_FOR_GRADING)
