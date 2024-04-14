@@ -1,15 +1,16 @@
-import {useNavigate, useParams} from "@solidjs/router";
+import {useParams} from "@solidjs/router";
 import {createAssignment, CustomAssignment, getApi} from "../api/Api";
 import {Accessor, createEffect, createMemo, createSignal, For, on, Setter, Show} from "solid-js";
 import Icon from "../components/icons/Icon";
 import Xmark from "../components/icons/svg/Xmark";
 import {MeasureType} from "../api/types";
 import Plus from "../components/icons/svg/Plus";
-import Loading from "../components/Loading";
 import ChevronUp from "../components/icons/svg/ChevronUp";
 import {isMCPS} from "../utils";
 
 import tooltip from "../directives/tooltip";
+import CaretUp from "../components/icons/svg/CaretUp";
+import CaretDown from "../components/icons/svg/CaretDown";
 void tooltip
 
 const NOT_FOR_GRADING = 'not-for-grading'
@@ -30,6 +31,7 @@ type AssignmentProps = {
   idx: Accessor<number>,
   setAssignments: Setter<CustomAssignment[]>,
   ack: Setter<boolean>,
+  baseRatio: number,
 }
 
 function AssignmentDetails(props: AssignmentProps) {
@@ -44,11 +46,16 @@ function AssignmentDetails(props: AssignmentProps) {
   const [measureTypeId, setMeasureTypeId] = createSignal(props.assignment.measureTypeId)
   const [forGrading, setForGrading] = createSignal(props.assignment.isForGrading)
 
+  const formatPercent = (r: number) => new Intl.NumberFormat('en-US', {style: 'percent', maximumFractionDigits: 2}).format(r)
+
   const ratio = createMemo(() => parseFloat(score()!) / parseFloat(maxScore()))
-  const formattedPercent = createMemo(() => isNaN(ratio())
-    ? '-'
-    : new Intl.NumberFormat('en-US', {style: 'percent', maximumFractionDigits: 2}).format(ratio())
-  )
+  const formattedPercent = createMemo(() => isNaN(ratio()) ? '-' : formatPercent(ratio()))
+
+  const impact = createMemo(() => score() == null || !forGrading() ? NaN : (
+    props.baseRatio - api.calculateWeightedPointRatio(
+      gradingPeriod, parseInt(courseId), { [measureTypeId()]: [-score()!, -maxScore()] }
+    )
+  ))
 
   const dueDate = props.assignment.dueDate
   const scoreType = props.assignment.reportCardScoreTypeId
@@ -136,7 +143,7 @@ function AssignmentDetails(props: AssignmentProps) {
             </button>
           </div>
         }>
-          <h2 class="mt-1">
+          <h2 class="mt-1" use:tooltip={score() == null ? '-' : formattedPercent()}>
             <sup>
               <input
                 style={{
@@ -171,7 +178,18 @@ function AssignmentDetails(props: AssignmentProps) {
         </Show>
       </td>
       <td class="text-center font-light lg:table-cell hidden">
-        {score() == null ? '-' : formattedPercent()}
+        <span classList={{
+          "flex items-center justify-center gap-x-1": true,
+          "text-scale-5 [&_svg]:fill-scale-5": impact() > 0,
+          "text-scale-2 [&_svg]:fill-scale-2": impact() < 0 && impact() > -0.05,
+          "text-scale-1 [&_svg]:fill-scale-1": impact() <= -0.05,
+          "text-fg/60": impact() == 0,
+        }}>
+          <Show when={score != null && !isNaN(impact()) && impact() != 0}>
+            <Icon icon={impact() > 0 ? CaretUp : CaretDown} class="fill-fg w-4 h-4" />
+          </Show>
+          {score() == null || isNaN(impact()) ? '-' : formatPercent(Math.abs(impact()))}
+        </span>
       </td>
       <td class="text-center">
         <button class="mt-1.5" onClick={() => {
@@ -227,56 +245,14 @@ function WeightProgressBar(props: WPBProps) {
   )
 }
 
-export default function CourseDetails() {
-  const api = getApi()!
-  const params = useParams()
-  const navigate = useNavigate()
-
-  const gradingPeriod = () => params.gradingPeriod ?? api.defaultGradingPeriod
-  const key = () => `${gradingPeriod()}:${params.courseId}`
-
-  createEffect(async () => {
-    if (!api.courseOrders.has(gradingPeriod())) {
-      const { data } = await api.request(`/grades/${gradingPeriod()}`)
-      if (data) {
-        api.courseOrders.set(gradingPeriod(), data)
-      } else {
-        navigate('/')
-      }
-    }
-    if (!api.courses.has(key())) {
-      const { data } = await api.request(`/grades/${gradingPeriod()}/courses/${params.courseId}`)
-      if (data) {
-        api.courses.set(key(), data)
-        api.populateModifiedCourse(gradingPeriod(), data)
-      } else {
-        navigate(`/grades/${gradingPeriod()}`)
-      }
-    }
-  })
-
-  return (
-    <Show when={api.courses.has(key()) && api.modifiedCourses.has(key())} fallback={<Loading />}>
-      <CourseDetailsInner />
-    </Show>
-  )
-}
-
-export function CourseDetailsInner() {
+export default function Assignments() {
   const api = getApi()!
   const params = useParams()
   const key = () => `${params.gradingPeriod}:${params.courseId}`
-
   const course = createMemo(() => api.courses.get(key()))
-  const metadata = createMemo(() => (
-    api.courseOrders.get(params.gradingPeriod)!.find(course => course.ID.toString() == params.courseId)!
-  ))
-  const [assignments, setAssignments] = createSignal<CustomAssignment[]>([])
-
   const scoreType = createMemo(() => course()!.classGrades[0].reportCardScoreTypeId)
   const ratio = createMemo(() => api.calculateWeightedPointRatio(params.gradingPeriod, parseInt(params.courseId)))
-  const style = createMemo(() => ({color: `rgb(var(--c-${api.calculateScoreStyle(scoreType()!, ratio()!)}))`}))
-  const mark = createMemo(() => api.calculateMark(scoreType()!, ratio()!))
+  const [assignments, setAssignments] = createSignal<CustomAssignment[]>([])
 
   createEffect(() => {
     if (course() && !assignments()?.length) {
@@ -333,23 +309,7 @@ export function CourseDetailsInner() {
   }
 
   return (
-    <>
-      <div class="flex justify-between p-4 bg-bg-0/80 mx-2 mt-2 rounded-lg">
-        <div class="flex flex-col">
-          <h1 class="font-title text-2xl">{metadata().Name}</h1>
-          <div class="flex items-center gap-x-3">
-            <span class="text-fg/60">{metadata().TeacherName}, Room {metadata().room}</span>
-          </div>
-        </div>
-        <div class="flex flex-col items-center justify-center">
-          <span class="font-title text-3xl" style={style()}>{mark()}</span>
-          <Show when={!isNaN(ratio())}>
-            <span class="text-sm" style={style()}>
-              {new Intl.NumberFormat('en-US', {style: 'percent', maximumFractionDigits: 2}).format(ratio())}
-            </span>
-          </Show>
-        </div>
-      </div>
+    <div class="flex flex-col overflow-auto">
       <div class="flex flex-col">
         <For each={api.policy.measureTypes}>
           {(measureType) => (
@@ -363,7 +323,7 @@ export function CourseDetailsInner() {
         </For>
       </div>
       <Show when={assignments().length} fallback={
-        <p class="flex flex-col flex-grow gap-y-2 items-center justify-center">
+        <p class="flex flex-col flex-grow h-[25vh] gap-y-2 items-center justify-center">
           <span class="font-title text-lg font-bold text-fg/60">No assignments yet...</span>
           <button class="btn btn-primary btn-sm" onClick={addAssignment}>
             <Icon icon={Plus} class="w-4 h-4 mr-2 fill-fg" />
@@ -376,7 +336,7 @@ export function CourseDetailsInner() {
             class="hidden absolute group hover:bg-accent mobile:flex items-center justify-center
               w-7 h-7 rounded-full top-0 right-0 -m-1 bg-3 z-40"
             onClick={addAssignment}
-            use:tooltip={{ content: 'Add Assignment' }}
+            use:tooltip="Add Assignment"
           >
             <Icon icon={Plus} class="fill-fg w-4 h-4" />
           </button>
@@ -387,7 +347,7 @@ export function CourseDetailsInner() {
                 <th scope="col" class="w-1/2">Assignment</th>
                 <th scope="col" class="px-4">Category</th>
                 <th scope="col" class="px-4">Score</th>
-                <th class="lg:table-cell hidden">%</th>
+                <th class="lg:table-cell hidden">Impact</th>
                 <th scope="col" class="px-2 mobile:px-0">
                   <button class="mobile:hidden flex items-center justify-center w-full h-full" onClick={addAssignment}>
                     <Icon icon={Plus} class="fill-fg w-4 h-4 transition hover:fill-accent" tooltip="Add Assignment" />
@@ -396,21 +356,22 @@ export function CourseDetailsInner() {
               </tr>
               </thead>
               <tbody>
-              <For each={assignments()}>
-                {(assignment, idx) => (
-                  <AssignmentDetails
-                    assignment={assignment}
-                    idx={idx}
-                    setAssignments={setAssignments}
-                    ack={setAcked}
-                  />
-                )}
-              </For>
+                <For each={assignments()}>
+                  {(assignment, idx) => (
+                    <AssignmentDetails
+                      assignment={assignment}
+                      idx={idx}
+                      setAssignments={setAssignments}
+                      ack={setAcked}
+                      baseRatio={ratio()}
+                    />
+                  )}
+                </For>
               </tbody>
             </table>
           </div>
         </div>
       </Show>
-    </>
+    </div>
   )
 }

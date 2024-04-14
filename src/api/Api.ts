@@ -146,8 +146,9 @@ export class Api {
     gradingPeriod: string,
     courseId: number,
     categoryId?: number,
+    assignments?: CustomAssignment[],
   ): number {
-    const assignments = this.modifiedCourses.get(`${gradingPeriod}:${courseId}`)!.assignments;
+    assignments ??= this.modifiedCourses.get(`${gradingPeriod}:${courseId}`)!.assignments;
     return assignments
       .filter(assignment =>
         assignment.isForGrading
@@ -157,21 +158,39 @@ export class Api {
       .reduce((acc, assignment) => acc + transform(assignment), 0)
   }
 
-  totalAssignmentPoints(gradingPeriod: string, courseId: number, categoryId?: number): number {
-    return this.totalAssignmentPointsBy(a => parseFloat(a.score!), gradingPeriod, courseId, categoryId)
+  totalAssignmentPoints(
+    gradingPeriod: string, courseId: number, categoryId?: number,
+    assignments?: CustomAssignment[],
+    ): number {
+    return this.totalAssignmentPointsBy(a => parseFloat(a.score!), gradingPeriod, courseId, categoryId, assignments)
   }
 
-  maxAssignmentPoints(gradingPeriod: string, courseId: number, categoryId?: number): number {
-    return this.totalAssignmentPointsBy(a => parseFloat(a.maxScore), gradingPeriod, courseId, categoryId)
+  maxAssignmentPoints(
+    gradingPeriod: string, courseId: number, categoryId?: number,
+    assignments?: CustomAssignment[],
+  ): number {
+    return this.totalAssignmentPointsBy(a => parseFloat(a.maxScore), gradingPeriod, courseId, categoryId, assignments)
   }
 
-  calculateWeightedPointRatio(gradingPeriod: string, courseId: number): number {
+  calculateWeightedPointRatio(
+    gradingPeriod: string,
+    courseId: number,
+    adjustments?: Record<number, [number, number]>,
+    assignments?: CustomAssignment[],
+  ): number {
     const [weight, ratio] = this.policy.measureTypes
-      .map(type => [type.id, type.weight / 100, this.maxAssignmentPoints(gradingPeriod, courseId, type.id)])
-      .filter(([_id, _weight, total]) => !!total)
-      .map(([id, weight, total]) => [
+      .map(type => [
+        type.id,
+        type.weight / 100,
+        this.maxAssignmentPoints(gradingPeriod, courseId, type.id, assignments),
+        adjustments?.[type.id] ?? [0, 0],
+      ] as const)
+      .filter(([_id, _weight, total, _adjustment]) => !!total)
+      .map(([id, weight, total, [extraPoints, extraTotal]]) => [
         weight,
-        this.totalAssignmentPoints(gradingPeriod, courseId, id) / total * weight,
+        (this.totalAssignmentPoints(gradingPeriod, courseId, id, assignments) + extraPoints)
+        / (total + extraTotal)
+        * weight,
       ])
       .filter(([_weight, ratio]) => !isNaN(ratio))
       .reduce(([a, b], [weight, ratio]) => [a + weight, b + ratio], [0, 0])

@@ -23,6 +23,9 @@
   "dependencies": {
     "@solid-primitives/map": "^0.4.11",
     "@solidjs/router": "^0.13.1",
+    "chart.js": "^4.4.2",
+    "chartjs-adapter-date-fns": "^3.0.0",
+    "date-fns": "^3.6.0",
     "msgpack-lite": "^0.1.26",
     "solid-js": "^1.8.11",
     "tippy.js": "^6.3.7"

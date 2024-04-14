@@ -1,4 +1,4 @@
-import {Component, createEffect, lazy, onMount, Show} from 'solid-js';
+import {Component, lazy, onMount, Show} from 'solid-js';
 import {Router, Route, useLocation, Navigate, useNavigate} from "@solidjs/router";
 
 import {Api, getApi, setApi} from "./api/Api";
@@ -42,7 +42,11 @@ function RefreshMount() {
 }
 
 const Grades = lazy(() => import('./pages/Grades'))
-const CourseDetails = lazy(() => import('./pages/CourseDetails'))
+const About = lazy(() => import('./pages/About'))
+const CourseLayout = lazy(() => import('./pages/CourseLayout'))
+const Assignments = lazy(() => import('./pages/Assignments'))
+const Analyze = lazy(() => import('./pages/Analyze'))
+const Optimize = lazy(() => import('./pages/Optimize'))
 
 const App: Component = () => {
   return (
@@ -58,7 +62,12 @@ const App: Component = () => {
         }>
           <Route component={Layout}>
             <Route path={["/", "/grades/:gradingPeriod"]} component={Grades} />
-            <Route path="/grades/:gradingPeriod/:courseId" component={CourseDetails} />
+            <Route path={"/about"} component={About} />
+            <Route path="/grades/:gradingPeriod/:courseId" component={CourseLayout}>
+              <Route path="/" component={Assignments} />
+              <Route path="/analyze" component={Analyze} />
+              <Route path="/optimize" component={Optimize} />
+            </Route>
           </Route>
           <Route path="*" component={() => <Navigate href="/" />} />
         </Show>

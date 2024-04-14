@@ -2,11 +2,10 @@ import {
   createMemo,
   createSignal,
   ErrorBoundary,
-  Match,
-  onMount, ParentProps, Show,
-  Signal, Switch,
+  onMount, ParentProps,
+  Switch,
 } from "solid-js";
-import {A, Navigate, Route, Router, useLocation, useParams} from "@solidjs/router";
+import {A, useLocation, useParams} from "@solidjs/router";
 import {createMediaQuery} from "@solid-primitives/media";
 
 import {BASE_URL, getApi} from "./api/Api";
@@ -15,13 +14,10 @@ void tooltip
 
 import Icon, {IconElement} from "./components/icons/Icon";
 import ChevronLeft from "./components/icons/svg/ChevronLeft";
-import GearIcon from "./components/icons/svg/Gear";
-import HomeIcon from "./components/icons/svg/Home";
 import SolidSquare from "./components/icons/svg/SolidSquare";
 import RightFromBracket from "./components/icons/svg/RightFromBracket";
 import Actions from "./components/Actions";
-
-enum Tab { Home, Settings }
+import CircleInfo from "./components/icons/svg/CircleInfo";
 
 function Nav(props: {
   href: string,
@@ -51,47 +47,25 @@ function Nav(props: {
   )
 }
 
-function HomeSidebar(props: { tabSignal: Signal<Tab> }) {
-  const [tab, setTab] = props.tabSignal
+function HomeSidebar() {
   const params = useParams()
 
   return (
-    <div classList={{
-      "flex flex-col transition-all p-2": true,
-    }}>
-      <Switch>
-        <Match when={tab() === Tab.Home}>
-          <Nav
-            href={params.gradingPeriod ? '/grades/' + params.gradingPeriod : '/'}
-            label="Grades"
-            icon={SolidSquare}
-            check={(path) => path === '/' || path.startsWith('/grades')}
-          />
-        </Match>
-
-        <Match when={tab() === Tab.Settings}>
-          <Nav href="/" label="Home" icon={HomeIcon} check={() => false} onClick={() => void setTab(Tab.Home)} />
-          <button
-            class="group transition rounded-lg p-3 flex items-center justify-start gap-x-3 hover:bg-danger"
-            onClick={() => {
-              localStorage.removeItem('token')
-              window.location.href = '/'
-            }}
-          >
-            <Icon icon={RightFromBracket} class="w-5 h-5 transition fill-danger group-hover:fill-danger-content" />
-            <span class="font-title transition text-danger group-hover:text-danger-content font-bold">
-              Log Out
-            </span>
-          </button>
-        </Match>
-      </Switch>
+    <div class="flex flex-col p-2">
+      <Nav
+        href={params.gradingPeriod ? '/grades/' + params.gradingPeriod : '/'}
+        label="Grades"
+        icon={SolidSquare}
+        check={(path) => path === '/' || path.startsWith('/grades')}
+      />
+      <div class="divider mx-2" />
+      <Nav href="/about" label="About" icon={CircleInfo} />
     </div>
   )
 }
 
-export function Sidebar({ signal }: { signal: Signal<Tab> }) {
+export function Sidebar() {
   const api = getApi()!
-  const [tab, setTab] = signal
 
   let photoRef: HTMLImageElement | null = null
 
@@ -108,7 +82,7 @@ export function Sidebar({ signal }: { signal: Signal<Tab> }) {
     <div class="flex flex-col w-full h-full justify-between backdrop-blur transition bg-bg-0/80">
       <div class="flex flex-grow h-[calc(100%-56px)]">
         <div class="flex flex-col w-full overflow-y-auto hide-scrollbar transition duration-500">
-          <HomeSidebar tabSignal={signal} />
+          <HomeSidebar />
         </div>
       </div>
       <div class="bg-bg-0 p-2 flex justify-between">
@@ -122,11 +96,14 @@ export function Sidebar({ signal }: { signal: Signal<Tab> }) {
           </div>
         </div>
         <button
-          onClick={() => setTab(prev => prev === Tab.Settings ? Tab.Home : Tab.Settings)}
-          class="bg-1 hover:bg-3 transition rounded-full w-10 h-10 flex items-center justify-center"
-          use:tooltip={tab() === Tab.Settings ? "Home" : "Settings"}
+          onClick={() => {
+            localStorage.removeItem('token')
+            window.location.href = '/'
+          }}
+          class="bg-2 hover:bg-danger group transition rounded-full w-10 h-10 flex items-center justify-center"
+          use:tooltip="Log Out"
         >
-          <Icon icon={tab() === Tab.Settings ? HomeIcon : GearIcon} class="w-4 h-4 fill-fg/80" />
+          <Icon icon={RightFromBracket} class="w-4 h-4 fill-fg" />
         </button>
       </div>
     </div>
@@ -136,14 +113,12 @@ export function Sidebar({ signal }: { signal: Signal<Tab> }) {
 export const [showSidebar, setShowSidebar] = createSignal(true)
 
 export default function Layout(props: ParentProps) {
-  const api = getApi()!
   const isMobile = createMediaQuery("(max-width: 768px)")
 
   onMount(() => {
     if (isMobile()) setShowSidebar(false)
   })
 
-  const sidebarSignal = createSignal(Tab.Home)
   const [swipeStart, setSwipeStart] = createSignal(0)
 
   const location = useLocation()
@@ -151,6 +126,7 @@ export default function Layout(props: ParentProps) {
   const header = createMemo(() => {
     let pathname = location.pathname
     if (pathname === '/') return 'Grades'
+    if (pathname === '/about') return 'About'
     if (pathname.startsWith('/grades')) {
       if (params.courseId) return 'Course Details'
       return 'Grades'
@@ -174,11 +150,11 @@ export default function Layout(props: ParentProps) {
         classList={{
           "my-2 rounded-2xl transition-all duration-300 overflow-hidden": true,
           "opacity-0 w-0 ml-0": !showSidebar(),
-          "opacity-100 w-72 ml-2": showSidebar(),
+          "opacity-100 w-64 ml-2": showSidebar(),
         }}
       >
-        <div class="w-72 h-full">
-          <Sidebar signal={sidebarSignal} />
+        <div class="w-64 h-full">
+          <Sidebar />
         </div>
       </div>
       <div classList={{

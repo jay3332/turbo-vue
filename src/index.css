@@ -39,6 +39,13 @@ html {
   }
 }
 
+.tippy-box[data-theme~="default"] {
+  background-color: rgb(var(--c-bg-3));
+  color: rgb(var(--c-fg));
+}
+
+.tippy-box .tippy-arrow::before { color: rgb(var(--c-bg-3)) }
+
 body { @apply hide-scrollbar }
 
 details > summary { list-style-type: none }
