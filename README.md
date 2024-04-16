@@ -34,15 +34,20 @@ to fetch and serialize data from the StudentVUE backend.
 - "What If" grade calculator
   - Modify scores on any assignment, delete assignments, and add custom assignments
     to see how they would affect your grade
+- Graphs and grade analysis
+  - View how your grade has changed over time with a graph
 - Color-coded scores and assignment types
 - Themes
 - *more to come*
 
 ### Coverage
 
+- [x] Login
 - [x] Gradebook
   - [x] Switch Grading Periods (MP2, MP2 Interim, etc.)
   - [x] Assignments
+  - [x] Graph/Grade Analysis
+  - [ ] Grade Optimizer
 - [ ] Schedule
 - [ ] Attendance
 - [ ] Documents

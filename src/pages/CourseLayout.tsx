@@ -95,7 +95,7 @@ export function CourseLayoutInner(props: ParentProps) {
         </div>
         <div class="flex gap-x-1 mt-1">
           <TabButton icon={TableList} label="Assignments" />
-          <TabButton icon={ChartLine} label="Analyze" path="analyze" />
+          <TabButton icon={ChartLine} label="Graph" path="analyze" />
           <TabButton icon={BullseyeArrow} label="Optimize" path="optimize" />
         </div>
       </div>
