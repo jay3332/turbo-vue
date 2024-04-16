@@ -29,6 +29,18 @@ export default function About() {
             <Icon icon={ChevronLeft} class="transform rotate-180 w-3.5 h-3.5 ml-0.5 fill-fg" />
           </a>
         </div>
+        <h3 class="font-title font-bold text-xl text-center mt-8 [word-spacing:3px]">Using TurboVUE on school networks</h3>
+        <p class="text-center pt-4 text-fg/70">
+          The grades.jay3332.tech domain is blocked on some school networks. If you are unable to access TurboVUE
+          on your school network, you can use the <a href="//turbo-vue.github.io" class="underline underline-offset-2">github.io</a> domain instead.
+          Note that this proxies all requests through a worker and will be slower than using grades.jay3332.tech directly.
+        </p>
+        <div class="flex justify-center w-full p-2">
+          <a href="//turbo-vue.github.io" class="btn btn-sm btn-ghost">
+            Visit firewalled TurboVUE
+            <Icon icon={ChevronLeft} class="transform rotate-180 w-3.5 h-3.5 ml-0.5 fill-fg"/>
+          </a>
+        </div>
       </div>
     </div>
   )
