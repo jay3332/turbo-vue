@@ -18,6 +18,7 @@ import SolidSquare from "./components/icons/svg/SolidSquare";
 import RightFromBracket from "./components/icons/svg/RightFromBracket";
 import Actions from "./components/Actions";
 import CircleInfo from "./components/icons/svg/CircleInfo";
+import Bug from "./components/icons/svg/Bug";
 
 function Nav(props: {
   href: string,
@@ -60,6 +61,7 @@ function HomeSidebar() {
       />
       <div class="divider mx-2" />
       <Nav href="/about" label="About" icon={CircleInfo} />
+      <Nav href="//github.com/jay3332/turbo-vue/issues/new/choose" label="Report a Bug" icon={Bug} />
     </div>
   )
 }
