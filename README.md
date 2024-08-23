@@ -48,6 +48,7 @@ to fetch and serialize data from the StudentVUE backend.
   - [x] Assignments
   - [x] Graph/Grade Analysis
   - [ ] Grade Optimizer
-- [ ] Schedule
+- [x] Schedule
+  - [ ] Live Countdown
 - [ ] Attendance
 - [ ] Documents
