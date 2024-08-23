@@ -59,7 +59,7 @@ function ScheduleInner({ schedules }: { schedules: Schedules }) {
               <th></th>
               <th></th>
               <th class="md:table-cell hidden">Teacher</th>
-              <th class="py-1.5">Room</th>
+              <th class="py-3">Room</th>
               <th>Time</th>
             </tr>
           </thead>
@@ -78,7 +78,7 @@ function ScheduleInner({ schedules }: { schedules: Schedules }) {
                     </div>
                   </td>
                   <td>
-                    <div class="flex flex-col mobile:py-0.5">
+                    <div class="flex flex-col py-0.5 mobile:py-1">
                       <span class="font-title text-sm">
                         {normalizeQualifiedClassName(cls.className)}
                       </span>
