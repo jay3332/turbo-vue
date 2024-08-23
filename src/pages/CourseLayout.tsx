@@ -125,9 +125,9 @@ export function CourseLayoutInner(props: ParentProps<{ gradebook: Gradebook }>) 
       <div class="flex flex-col mx-2 mt-2 overflow-hidden rounded-xl">
         <div class="flex justify-between p-4 bg-bg-0/80 rounded">
           <div class="flex flex-col">
-            <h1 class="font-title text-2xl">{metadata().Name}</h1>
+            <h1 class="font-title text-2xl mobile:text-xl">{metadata().Name}</h1>
             <div class="flex items-center gap-x-3">
-              <span class="text-fg/60">{metadata().TeacherName}, Room {metadata().room}</span>
+              <span class="text-fg/60 font-light mobile:text-sm">{metadata().TeacherName}, Room {metadata().room}</span>
             </div>
           </div>
           <div class="flex flex-col items-center justify-center">
