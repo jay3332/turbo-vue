@@ -183,7 +183,7 @@ export class Gradebook {
         )
 
       const weighted = this.mcpsGpaValue(mark, this.isMcpsCourseWeighted(course.Name))
-      if (weighted) {
+      if (weighted != null) {
         totalWeighted += weighted
         totalUnweighted += this.mcpsGpaValue(mark, false) ?? 0
         count++
