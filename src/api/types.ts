@@ -140,10 +140,7 @@ export interface GradingPeriod {
 
 export interface LoginResponse {
   token: string,
-  courseOrder: CourseMetadata[],
-  policy: GradingPolicy,
   student: StudentInfo,
-  gradingPeriods: Record<string, GradingPeriod>,
 }
 
 export interface DistrictInfo {
@@ -158,4 +155,50 @@ export interface StudentInfo {
   schoolName: string,
   schoolPhone: string,
   photoUrl: string,
+}
+
+export interface GetGradebookResponse {
+  courseOrder: CourseMetadata[],
+  policy: GradingPolicy,
+  gradingPeriods: Record<string, GradingPeriod>,
+}
+
+export interface Schedules {
+  date: string // mm/dd/yyyy
+  schools: Schedule[]
+}
+
+export interface RawDt {
+  year: number
+  month: number
+  day: number
+  hours: number
+  minutes: number
+  seconds: number
+}
+
+export interface ScheduleClass {
+  enrollmentGU: string
+  period: string // 00, 01, 02, etc.
+  className: string
+  sectionGU: string
+  classURL: string
+  startTime: string // h:mm AM/PM
+  startDate: string // m/dd/yyyy h:mm:ss AM/PM
+  startInfo: RawDt
+  endTime: string
+  endDate: string
+  endInfo: RawDt
+  teacherName: string
+  teacherNameFNLN: string
+  teacherEmail: string
+  staffGU: string
+  roomName: string
+}
+
+export interface Schedule {
+  schoolName: string
+  orgGU: string
+  bellSchedName: string
+  classes: ScheduleClass[]
 }

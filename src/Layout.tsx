@@ -19,6 +19,7 @@ import RightFromBracket from "./components/icons/svg/RightFromBracket";
 import Actions from "./components/Actions";
 import CircleInfo from "./components/icons/svg/CircleInfo";
 import Bug from "./components/icons/svg/Bug";
+import Bell from "./components/icons/svg/Bell";
 
 function Nav(props: {
   href: string,
@@ -59,6 +60,7 @@ function HomeSidebar() {
         icon={SolidSquare}
         check={(path) => path === '/' || path.startsWith('/grades')}
       />
+      <Nav href="/schedule" label="Schedule" icon={Bell} />
       <div class="divider mx-2" />
       <Nav href="/about" label="About" icon={CircleInfo} />
       <Nav href="//github.com/jay3332/turbo-vue/issues/new/choose" label="Report a Bug" icon={Bug} />
@@ -133,6 +135,7 @@ export default function Layout(props: ParentProps) {
       if (params.courseId) return 'Course Details'
       return 'Grades'
     }
+    if (pathname === '/schedule') return 'Schedule'
   })
 
   return (

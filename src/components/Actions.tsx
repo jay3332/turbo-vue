@@ -1,5 +1,5 @@
 import {A, useLocation, useNavigate, useParams} from "@solidjs/router";
-import {createMemo, createSignal, For, JSX, Match, onCleanup, onMount, ParentProps, Show, Switch} from "solid-js";
+import {createMemo, createSignal, For, JSX, Match, ParentProps, Show, Switch} from "solid-js";
 import Icon, {IconElement} from "./icons/Icon";
 import {getApi} from "../api/Api";
 import ArrowsRotate from "./icons/svg/ArrowsRotate";
@@ -49,20 +49,24 @@ function ActionButton(props: ParentProps<ActionButtonProps>) {
 
 function CourseActions() {
   const api = getApi()!
+  const gradebook = () => api.gradebook
   const params = useParams()
   const navigate = useNavigate()
 
   const [isRefreshing, setIsRefreshing] = createSignal(false)
   const [showGradingPeriodMenu, setShowGradingPeriodMenu] = createSignal(false)
   const needsRollback = createMemo(() => {
+    const gb = gradebook()
+    if (!gb) return false
+
     return params.courseId
-      ? api.modifiedCourses.get(`${params.gradingPeriod}:${params.courseId}`)?.needsRollback
-      : someIterator(api.modifiedCourses.values(), c => c.needsRollback)
+      ? gb.modifiedCourses.get(`${params.gradingPeriod}:${params.courseId}`)?.needsRollback
+      : someIterator(gb.modifiedCourses.values(), c => c.needsRollback)
   })
-  const gradingPeriod = () => params.gradingPeriod ?? api.defaultGradingPeriod
+  const gradingPeriod = () => params.gradingPeriod ?? api.gradebook?.defaultGradingPeriod
 
   return (
-    <>
+    <Show when={gradebook()}>
       <Show when={params.courseId}>
         <ActionButton onClick={() => navigate('/grades/' + gradingPeriod())} label="Courses" class="w-14">
           <ActionIcon icon={SolidSquare} />
@@ -74,7 +78,7 @@ function CourseActions() {
           class="!justify-between w-full px-4"
         >
           <span class="font-title font-bold select-none">
-            {api.gradingPeriods[gradingPeriod()].Name}
+            {gradebook()!.gradingPeriods[gradingPeriod()].Name}
           </span>
           <Icon
             icon={ChevronUp}
@@ -89,7 +93,7 @@ function CourseActions() {
             "border-fg/20 p-2 flex-col dropdown"]: true,
           "mobile:w-full": params.courseId != null,
         }}>
-          <For each={Object.values(api.gradingPeriods)}>
+          <For each={Object.values(gradebook()!.gradingPeriods)}>
             {(period) => (
               <A
                 href={`/grades/${period.GU}` + (params.courseId ? `/${params.courseId}` : '')}
@@ -111,18 +115,18 @@ function CourseActions() {
             if (params.courseId) {
               const key = `${params.gradingPeriod}:${params.courseId}`
               if (needsRollback())
-                return api.populateModifiedCourse(params.gradingPeriod, api.courses.get(key)!)
+                return gradebook()!.populateModifiedCourse(params.gradingPeriod, gradebook()!.courses.get(key)!)
 
               const {data} = await api.request(`/grades/${params.gradingPeriod}/courses/${params.courseId}`) // TODO: toast
               if (data) {
-                api.courses.set(key, data)
-                api.populateModifiedCourse(params.gradingPeriod, data)
+                gradebook()!.courses.set(key, data)
+                gradebook()!.populateModifiedCourse(params.gradingPeriod, data)
               }
             } else if (needsRollback()) {
-              for (const course of api.courses.values())
-                api.populateModifiedCourse(gradingPeriod(), course)
+              for (const course of gradebook()!.courses.values())
+                gradebook()!.populateModifiedCourse(gradingPeriod(), course)
             } else {
-              await api.updateAllCourses(gradingPeriod())
+              await gradebook()!.updateAllCourses(gradingPeriod())
             }
           } finally {
             setIsRefreshing(false)
@@ -134,7 +138,7 @@ function CourseActions() {
       >
         <ActionIcon icon={needsRollback() ? RotateLeft : ArrowsRotate} />
       </ActionButton>
-    </>
+    </Show>
   )
 }
 

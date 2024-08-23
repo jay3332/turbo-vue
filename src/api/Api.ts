@@ -3,13 +3,13 @@ import {
   Assignment,
   Course,
   CourseMetadata,
-  DistrictInfo,
+  DistrictInfo, GetGradebookResponse,
   GradingPeriod,
   GradingPolicy,
-  LoginResponse,
+  LoginResponse, Schedules,
   StudentInfo
 } from "./types";
-import {createRoot, createSignal} from "solid-js";
+import {createRoot, createSignal, Signal} from "solid-js";
 import {ReactiveMap} from "@solid-primitives/map";
 import {isMCPS} from "../utils";
 
@@ -28,89 +28,27 @@ export interface CustomCourse {
   needsRollback: boolean
 }
 
-export class Api {
-  token: string
-  courseOrders: ReactiveMap<string, CourseMetadata[]>
+export class Gradebook {
   courses: ReactiveMap<string, Course>
-  policy: GradingPolicy
-  gradingPeriods: Record<string, GradingPeriod>
-  student: StudentInfo
   modifiedCourses: ReactiveMap<string, CustomCourse>
+  courseOrders: ReactiveMap<string, CourseMetadata[]>
 
-  constructor(loginResponse: LoginResponse) {
-    this.token = loginResponse.token
-    this.courseOrders = new ReactiveMap()
+  constructor(
+    public api: Api,
+    public policy: GradingPolicy,
+    public gradingPeriods: Record<string, GradingPeriod>,
+    defaultCourseOrder: CourseMetadata[],
+  ) {
     this.courses = new ReactiveMap()
-    this.policy = loginResponse.policy
-    this.student = loginResponse.student
-    this.gradingPeriods = loginResponse.gradingPeriods
     this.modifiedCourses = new ReactiveMap()
 
-    this.courseOrders.set(this.defaultGradingPeriod, loginResponse.courseOrder)
+    this.courseOrders = new ReactiveMap()
+    this.courseOrders.set(this.defaultGradingPeriod, defaultCourseOrder)
     let {} = this.updateAllCourses()
   }
 
-  static async fromLogin(host: string, username: string, password: string): Promise<Api> {
-    const response = await fetch(BASE_URL + '/login', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({host, username, password}),
-    });
-    if (!response.ok) throw new Error(await response.text());
-    const loginResponse = msgpack.decode(new Uint8Array(await response.arrayBuffer())) as LoginResponse;
-    return new Api(loginResponse);
-  }
-
-  static async fromToken(token: string): Promise<Api> {
-    const headers = {Authorization: token};
-    const response = await fetch(BASE_URL + '/refresh', {method: 'POST', headers});
-    if (!response.ok) throw new Error(await response.text());
-
-    const loginResponse = msgpack.decode(new Uint8Array(await response.arrayBuffer())) as LoginResponse;
-    return new Api({...loginResponse, token});
-  }
-
-  static async fetchDistricts(zipCode: number): Promise<DistrictInfo[]> {
-    const paramStr =
-      '&lt;Parms&gt;&lt;Key&gt;5E4B7859-B805-474B-A833-FDB15D205D40&lt;/Key' +
-      `&gt;&lt;MatchToDistrictZipCode&gt;${zipCode}&lt;/MatchToDistrictZipCode&gt;&lt;/Parms&gt;`;
-    const response = await fetch('https://support.edupoint.com/Service/HDInfoCommunication.asmx', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'text/xml; charset=utf-8',
-        'SOAPAction': 'http://edupoint.com/webservices/ProcessWebServiceRequest',
-      },
-      body: `<?xml version="1.0" encoding="utf-8"?>
-        <soap:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
-          xmlns:xsd="http://www.w3.org/2001/XMLSchema"
-          xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"
-        >
-          <soap:Body>
-            <ProcessWebServiceRequest xmlns="http://edupoint.com/webservices/">
-              <userID>EdupointDistrictInfo</userID>
-              <password>Edup01nt</password>
-              <skipLoginLog>1</skipLoginLog>
-              <parent>0</parent>
-              <webServiceHandleName>HDInfoServices</webServiceHandleName>
-              <methodName>GetMatchingDistrictList</methodName>
-              <paramStr>${paramStr}</paramStr>
-            </ProcessWebServiceRequest>
-          </soap:Body>
-        </soap:Envelope>
-      `,
-    })
-
-    const text = await response.text();
-    const parser = new DOMParser().parseFromString(text, 'text/xml');
-    const xml = new DOMParser().parseFromString(
-      parser.querySelector('ProcessWebServiceRequestResult')!.textContent!,
-      'text/xml',
-    )
-    return [...xml.getElementsByTagName('DistrictInfo')].map((entry) => ({
-      name: entry.getAttribute('Name')!,
-      address: entry.getAttribute('Address')!,
-      host: entry.getAttribute('PvueURL')!,
-    }))
+  static fromResponse(api: Api, response: GetGradebookResponse): Gradebook {
+    return new Gradebook(api, response.policy, response.gradingPeriods, response.courseOrder)
   }
 
   get defaultGradingPeriod(): string {
@@ -119,7 +57,7 @@ export class Api {
 
   async updateAllCourses(gradingPeriod?: string) {
     gradingPeriod ??= this.defaultGradingPeriod;
-    const {data, error} = await this.request(`/grades/${gradingPeriod}/courses`);
+    const {data, error} = await this.api.request(`/grades/${gradingPeriod}/courses`);
     if (error) throw new Error(error);
     this.populateAllCourses(gradingPeriod, data)
   }
@@ -161,7 +99,7 @@ export class Api {
   totalAssignmentPoints(
     gradingPeriod: string, courseId: number, categoryId?: number,
     assignments?: CustomAssignment[],
-    ): number {
+  ): number {
     return this.totalAssignmentPointsBy(a => parseFloat(a.score!), gradingPeriod, courseId, categoryId, assignments)
   }
 
@@ -284,9 +222,106 @@ export class Api {
     }
     return 'fg';
   }
+}
 
-  async request(path: string, options: RequestInit = {}): Promise<
-    {data: any, error: null} | {data: null, error: string}
+export class Api {
+  token: string
+  student: StudentInfo
+  gradebookSignal: Signal<Gradebook | null>
+  scheduleSignal: Signal<Schedules | null>
+
+  constructor(loginResponse: LoginResponse) {
+    this.token = loginResponse.token
+    this.student = loginResponse.student
+    this.gradebookSignal = createSignal<Gradebook | null>(null)
+    this.scheduleSignal = createSignal<Schedules | null>(null)
+  }
+
+  get gradebook(): Gradebook | null {
+    const [gradebook] = this.gradebookSignal
+    return gradebook()
+  }
+
+  set gradebook(gradebook: Gradebook) {
+    const [, setGradebook] = this.gradebookSignal
+    setGradebook(gradebook)
+  }
+
+  get schedules(): Schedules | null {
+    const [schedules] = this.scheduleSignal
+    return schedules()
+  }
+
+  set schedules(schedules: Schedules) {
+    const [, setSchedules] = this.scheduleSignal
+    setSchedules(schedules)
+  }
+
+  static async fromLogin(host: string, username: string, password: string): Promise<Api> {
+    const response = await fetch(BASE_URL + '/login', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({host, username, password}),
+    });
+    if (!response.ok) throw new Error(await response.text());
+    const loginResponse = msgpack.decode(new Uint8Array(await response.arrayBuffer())) as LoginResponse;
+    return new Api(loginResponse);
+  }
+
+  static async fromToken(token: string): Promise<Api> {
+    const headers = {Authorization: token};
+    const response = await fetch(BASE_URL + '/refresh', {method: 'POST', headers});
+    if (!response.ok) throw new Error(await response.text());
+
+    const loginResponse = msgpack.decode(new Uint8Array(await response.arrayBuffer())) as LoginResponse;
+    return new Api({...loginResponse, token});
+  }
+
+  static async fetchDistricts(zipCode: number): Promise<DistrictInfo[]> {
+    const paramStr =
+      '&lt;Parms&gt;&lt;Key&gt;5E4B7859-B805-474B-A833-FDB15D205D40&lt;/Key' +
+      `&gt;&lt;MatchToDistrictZipCode&gt;${zipCode}&lt;/MatchToDistrictZipCode&gt;&lt;/Parms&gt;`;
+    const response = await fetch('https://support.edupoint.com/Service/HDInfoCommunication.asmx', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'text/xml; charset=utf-8',
+        'SOAPAction': 'http://edupoint.com/webservices/ProcessWebServiceRequest',
+      },
+      body: `<?xml version="1.0" encoding="utf-8"?>
+        <soap:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+          xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+          xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"
+        >
+          <soap:Body>
+            <ProcessWebServiceRequest xmlns="http://edupoint.com/webservices/">
+              <userID>EdupointDistrictInfo</userID>
+              <password>Edup01nt</password>
+              <skipLoginLog>1</skipLoginLog>
+              <parent>0</parent>
+              <webServiceHandleName>HDInfoServices</webServiceHandleName>
+              <methodName>GetMatchingDistrictList</methodName>
+              <paramStr>${paramStr}</paramStr>
+            </ProcessWebServiceRequest>
+          </soap:Body>
+        </soap:Envelope>
+      `,
+    })
+
+    const text = await response.text();
+    const parser = new DOMParser().parseFromString(text, 'text/xml');
+    const xml = new DOMParser().parseFromString(
+      parser.querySelector('ProcessWebServiceRequestResult')!.textContent!,
+      'text/xml',
+    )
+    return [...xml.getElementsByTagName('DistrictInfo')].map((entry) => ({
+      name: entry.getAttribute('Name')!,
+      address: entry.getAttribute('Address')!,
+      host: entry.getAttribute('PvueURL')!,
+    }))
+  }
+
+  async request<T = any>(path: string, options: RequestInit = {}): Promise<
+    {data: T, error: null} | {data: null, error: string}
   > {
     const headers: any = {
       ...(options.headers ?? {}),

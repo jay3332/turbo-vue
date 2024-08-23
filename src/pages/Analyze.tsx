@@ -17,18 +17,18 @@ import {Assignment} from "../api/types";
 Chart.register(BubbleController, LineController, LinearScale, TimeScale, Tooltip, LineElement, PointElement)
 
 export default function Analyze() {
-  const api = getApi()!
+  const gradebook = getApi()!.gradebook!
   const params = useParams()
   const key = createMemo(() => `${params.gradingPeriod}:${params.courseId}`)
-  const course = createMemo(() => api.courses.get(key())!)
+  const course = createMemo(() => gradebook.courses.get(key())!)
   const assignments = createMemo(() => {
-    const assignments = api.modifiedCourses.get(key())!.assignments
+    const assignments = gradebook.modifiedCourses.get(key())!.assignments
     return assignments.slice(assignments.findIndex(assignment => !assignment.isCustom))
   })
 
   const measureTypeOpacityMap = createMemo(() => {
-    const maxWeight = api.policy.measureTypes.reduce((max, measureType) => Math.max(max, measureType.weight), 0)
-    return api.policy.measureTypes.reduce((map, measureType) => {
+    const maxWeight = gradebook.policy.measureTypes.reduce((max, measureType) => Math.max(max, measureType.weight), 0)
+    return gradebook.policy.measureTypes.reduce((map, measureType) => {
       map[measureType.id] = measureType.weight / maxWeight * 0.6 + 0.2
       return map
     }, {} as Record<number, number>)
@@ -51,7 +51,7 @@ export default function Analyze() {
       return {
         ...a,
         ratio,
-        color: resolve(a.isForGrading && !a.excused ? api.calculateScoreStyle(a.reportCardScoreTypeId, ratio) : 'fg'),
+        color: resolve(a.isForGrading && !a.excused ? gradebook.calculateScoreStyle(a.reportCardScoreTypeId, ratio) : 'fg'),
         radius: Math.max(1, parseFloat(a.maxScore) / maxScore * 15),
       } as Assignment & { ratio: number, color: string, radius: number }
     })
@@ -71,8 +71,8 @@ export default function Analyze() {
     const lineColors = []
     for (const assignment of assignments.toReversed()) {
       accumulated.push(assignment)
-      const ratio = api.calculateWeightedPointRatio(params.gradingPeriod, parseInt(params.courseId), undefined, accumulated)
-      lineColors.push(`rgb(${resolve(api.calculateScoreStyle(assignment.reportCardScoreTypeId, ratio))})`)
+      const ratio = gradebook.calculateWeightedPointRatio(params.gradingPeriod, parseInt(params.courseId), undefined, accumulated)
+      lineColors.push(`rgb(${resolve(gradebook.calculateScoreStyle(assignment.reportCardScoreTypeId, ratio))})`)
       dataset.push({
         x: new Date(assignment.dueDate).getTime(),
         y: ratio * 100,
@@ -165,10 +165,9 @@ export default function Analyze() {
                   const y = lowestTick + step * i
                   gradient.addColorStop(
                     i / 20,
-                    `rgb(${resolve(api.calculateScoreStyle(api.policy.defaultReportCardScoreTypeId, y / 100))})`,
+                    `rgb(${resolve(gradebook.calculateScoreStyle(gradebook.policy.defaultReportCardScoreTypeId, y / 100))})`,
                   )
                 }
-                console.log("bal")
                 return gradient
               }
             },

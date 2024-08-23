@@ -1,5 +1,5 @@
 import {useParams} from "@solidjs/router";
-import {createAssignment, CustomAssignment, getApi} from "../api/Api";
+import {createAssignment, CustomAssignment, getApi, Gradebook} from "../api/Api";
 import {Accessor, createEffect, createMemo, createSignal, For, on, Setter, Show} from "solid-js";
 import Icon from "../components/icons/Icon";
 import Xmark from "../components/icons/svg/Xmark";
@@ -27,6 +27,7 @@ function sanitizeCategoryType(category: string) {
 const transform = (value: string) => parseFloat(value.replaceAll(',', '')).toString()
 
 type AssignmentProps = {
+  gradebook: Gradebook,
   assignment: CustomAssignment,
   idx: Accessor<number>,
   setAssignments: Setter<CustomAssignment[]>,
@@ -51,8 +52,9 @@ function AssignmentDetails(props: AssignmentProps) {
   const ratio = createMemo(() => parseFloat(score()!) / parseFloat(maxScore()))
   const formattedPercent = createMemo(() => isNaN(ratio()) ? '-' : formatPercent(ratio()))
 
+  const gradebook = props.gradebook
   const impact = createMemo(() => score() == null || !forGrading() ? NaN : (
-    props.baseRatio - api.calculateWeightedPointRatio(
+    props.baseRatio - gradebook.calculateWeightedPointRatio(
       gradingPeriod, parseInt(courseId), { [measureTypeId()]: [-score()!, -maxScore()] }
     )
   ))
@@ -72,12 +74,12 @@ function AssignmentDetails(props: AssignmentProps) {
         measureTypeId,
         isForGrading: forGrading,
       }
-      const course = api.modifiedCourses.get(key)!
+      const course = gradebook.modifiedCourses.get(key)!
       const modified = course.assignments.map((old, j) => (
         props.idx() == j ? updated : {...old}
       ))
       props.ack(false)
-      api.modifiedCourses.set(key, { assignments: modified, needsRollback: true })
+      gradebook.modifiedCourses.set(key, { assignments: modified, needsRollback: true })
     },
     { defer: true }
   ))
@@ -102,12 +104,12 @@ function AssignmentDetails(props: AssignmentProps) {
 
               const value = parseInt(categorySelectRef!.value)
               setMeasureTypeId(value)
-              const name = api.policy.measureTypes.find(m => m.id == value)!.name
+              const name = gradebook.policy.measureTypes.find(m => m.id == value)!.name
               setCategory(name)
               setForGrading(true)
             }}
           >
-            <For each={api.policy.measureTypes}>
+            <For each={gradebook.policy.measureTypes}>
               {measureType => (
                 <option value={measureType.id} selected={forGrading() && measureTypeId() == measureType.id}>
                   {measureType.name}
@@ -147,7 +149,7 @@ function AssignmentDetails(props: AssignmentProps) {
             <sup>
               <input
                 style={{
-                  color: `rgb(var(--c-${api.calculateScoreStyle(scoreType, ratio())}))`,
+                  color: `rgb(var(--c-${gradebook.calculateScoreStyle(scoreType, ratio())}))`,
                   width: `${transform(score()!).length}ch`,
                 }}
                 class="font-bold text-base text-right focus:outline-none bg-transparent"
@@ -193,8 +195,8 @@ function AssignmentDetails(props: AssignmentProps) {
       </td>
       <td class="text-center">
         <button class="mt-1.5" onClick={() => {
-          const modified = api.modifiedCourses.get(key)!.assignments.filter((_, j) => j != props.idx())
-          api.modifiedCourses.set(key, { assignments: modified, needsRollback: true })
+          const modified = gradebook.modifiedCourses.get(key)!.assignments.filter((_, j) => j != props.idx())
+          gradebook.modifiedCourses.set(key, { assignments: modified, needsRollback: true })
           props.setAssignments(modified)
         }}>
           <Icon
@@ -208,15 +210,18 @@ function AssignmentDetails(props: AssignmentProps) {
   )
 }
 
-type WPBProps = { gradingPeriod: string, courseId: number, measureType: MeasureType, scoreType: number }
+type WPBProps = {
+  gradebook: Gradebook, gradingPeriod: string, courseId: number, measureType: MeasureType, scoreType: number
+}
 
 function WeightProgressBar(props: WPBProps) {
-  const api = getApi()!
-  const points = createMemo(() => api.totalAssignmentPoints(props.gradingPeriod, props.courseId, props.measureType.id))
-  const maxPoints = createMemo(() => api.maxAssignmentPoints(props.gradingPeriod, props.courseId, props.measureType.id))
+  const points = createMemo(() =>
+    props.gradebook.totalAssignmentPoints(props.gradingPeriod, props.courseId, props.measureType.id))
+  const maxPoints = createMemo(() =>
+    props.gradebook.maxAssignmentPoints(props.gradingPeriod, props.courseId, props.measureType.id))
 
   const ratio = () => points() / maxPoints()
-  const style = () => api.calculateScoreStyle(props.scoreType, ratio())
+  const style = () => props.gradebook.calculateScoreStyle(props.scoreType, ratio())
 
   return (
     <Show when={points() || maxPoints()}>
@@ -247,16 +252,17 @@ function WeightProgressBar(props: WPBProps) {
 
 export default function Assignments() {
   const api = getApi()!
+  const gradebook = api.gradebook!
   const params = useParams()
   const key = () => `${params.gradingPeriod}:${params.courseId}`
-  const course = createMemo(() => api.courses.get(key()))
+  const course = createMemo(() => gradebook.courses.get(key()))
   const scoreType = createMemo(() => course()!.classGrades[0].reportCardScoreTypeId)
-  const ratio = createMemo(() => api.calculateWeightedPointRatio(params.gradingPeriod, parseInt(params.courseId)))
+  const ratio = createMemo(() => gradebook.calculateWeightedPointRatio(params.gradingPeriod, parseInt(params.courseId)))
   const [assignments, setAssignments] = createSignal<CustomAssignment[]>([])
 
   createEffect(() => {
     if (course() && !assignments()?.length) {
-      setAssignments(api.modifiedCourses.get(key())!.assignments)
+      setAssignments(gradebook.modifiedCourses.get(key())!.assignments)
     }
   })
 
@@ -266,13 +272,13 @@ export default function Assignments() {
   createEffect(on(
     [assignments, needsRollback], ([assignments, needsRollback]) => {
       setAcked(false)
-      api.modifiedCourses.set(key(), { assignments, needsRollback })
+      gradebook.modifiedCourses.set(key(), { assignments, needsRollback })
     },
     { defer: true }
   ))
 
   createEffect(on(
-    () => api.modifiedCourses.get(key()), (updated) => {
+    () => gradebook.modifiedCourses.get(key()), (updated) => {
       if (!acked()) return setAcked(true)
       if (updated != null) {
         setAssignments(updated.assignments)
@@ -283,7 +289,7 @@ export default function Assignments() {
   ))
 
   const addAssignment = () => {
-    const measureType = api.policy.measureTypes[0]
+    const measureType = gradebook.policy.measureTypes[0]
     const dummyAssignment = createAssignment({
       category: measureType.name,
       commentCode: null,
@@ -300,10 +306,10 @@ export default function Assignments() {
       name: 'New Assignment',
       reportCardScoreTypeId: scoreType(),
       score: '0',
-      studentId: api.policy.students[0].id,
+      studentId: gradebook.policy.students[0].id,
       week: '',
     }, true)
-    const modified = [dummyAssignment, ...api.modifiedCourses.get(key())!.assignments]
+    const modified = [dummyAssignment, ...gradebook.modifiedCourses.get(key())!.assignments]
     setAssignments(modified)
     setNeedsRollback(true)
   }
@@ -311,9 +317,10 @@ export default function Assignments() {
   return (
     <div class="flex flex-col overflow-auto">
       <div class="flex flex-col">
-        <For each={api.policy.measureTypes}>
+        <For each={gradebook.policy.measureTypes}>
           {(measureType) => (
             <WeightProgressBar
+              gradebook={gradebook}
               gradingPeriod={params.gradingPeriod}
               courseId={parseInt(params.courseId)}
               measureType={measureType}
@@ -343,22 +350,23 @@ export default function Assignments() {
           <div class="overflow-hidden rounded-lg">
             <table class="w-full">
               <thead class="bg-bg-0 font-title">
-              <tr class="[&>th]:py-3">
-                <th scope="col" class="w-1/2">Assignment</th>
-                <th scope="col" class="px-4">Category</th>
-                <th scope="col" class="px-4">Score</th>
-                <th class="lg:table-cell hidden">Impact</th>
-                <th scope="col" class="px-2 mobile:px-0">
-                  <button class="mobile:hidden flex items-center justify-center w-full h-full" onClick={addAssignment}>
-                    <Icon icon={Plus} class="fill-fg w-4 h-4 transition hover:fill-accent" tooltip="Add Assignment" />
-                  </button>
-                </th>
-              </tr>
+                <tr class="[&>th]:py-3">
+                  <th scope="col" class="w-1/2">Assignment</th>
+                  <th scope="col" class="px-4">Category</th>
+                  <th scope="col" class="px-4">Score</th>
+                  <th class="lg:table-cell hidden">Impact</th>
+                  <th scope="col" class="px-2 mobile:px-0">
+                    <button class="mobile:hidden flex items-center justify-center w-full h-full" onClick={addAssignment}>
+                      <Icon icon={Plus} class="fill-fg w-4 h-4 transition hover:fill-accent" tooltip="Add Assignment" />
+                    </button>
+                  </th>
+                </tr>
               </thead>
               <tbody>
                 <For each={assignments()}>
                   {(assignment, idx) => (
                     <AssignmentDetails
+                      gradebook={gradebook}
                       assignment={assignment}
                       idx={idx}
                       setAssignments={setAssignments}

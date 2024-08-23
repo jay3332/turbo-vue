@@ -47,6 +47,7 @@ const CourseLayout = lazy(() => import('./pages/CourseLayout'))
 const Assignments = lazy(() => import('./pages/Assignments'))
 const Analyze = lazy(() => import('./pages/Analyze'))
 const Optimize = lazy(() => import('./pages/Optimize'))
+const Schedule = lazy(() => import('./pages/Schedule'))
 
 const App: Component = () => {
   return (
@@ -68,6 +69,7 @@ const App: Component = () => {
               <Route path="/analyze" component={Analyze} />
               <Route path="/optimize" component={Optimize} />
             </Route>
+            <Route path="/schedule" component={Schedule} />
           </Route>
           <Route path="*" component={() => <Navigate href="/" />} />
         </Show>

@@ -16,3 +16,16 @@ export function isMCPS() {
   const host = localStorage.getItem('preferredHost')
   return !host || JSON.parse(host).host === 'https://md-mcps-psv.edupoint.com'
 }
+
+const qualifiedClassNameRegex = /^([A-Z]{3}[0-9]{4}[A-Z0-9-]*) (.+) - ([A-Z]{3}[0-9]{4}[A-Z0-9-]*)$/
+
+export function normalizeQualifiedClassName(name: string) {
+  if (!isMCPS()) return name
+
+  // qualified format: [course code] [course name] - [course id]
+  const match = qualifiedClassNameRegex.exec(name)
+  if (!match) return name
+
+  const [,, course] = match
+  return course
+}

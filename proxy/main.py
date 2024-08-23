@@ -53,9 +53,11 @@ class StudentVueScraper:
         self._gradebooks: dict[str, bs4.BeautifulSoup] = {}
         self._html: str = MISSING
 
+        self._gradebook_loaded: bool = False
         self._course_focus_data: dict[tuple[str, int], dict[str, Any]] = {}
         self._course_data: dict[tuple[str, int], dict[str, Any]] = {}
         self.general_course_metadata: dict[str, Any] = MISSING
+        self.schedules: dict[str, Any] = {}
 
         self.student_info: dict[str, Any] = MISSING
         self.student_image: bytes | None = None
@@ -90,12 +92,21 @@ class StudentVueScraper:
                 raise web.HTTPUnauthorized(text='Invalid credentials')
             self.cookies = response.cookies
 
-        headers = {'Current_web_portal': 'StudentVUE'}
-        async with self.post('/PXP2_GradeBook.aspx?AGU=0', headers=headers) as response:
-            html = await response.text()
-            self._register_focus_data(html)
-            self.default_grading_period = gu = next(g['GU'] for g in self.grading_periods.values() if g['defaultFocus'])
-            self._register_gradebook(html, gu)
+    async def load_gradebook(self) -> None:
+        if self._gradebook_loaded:
+            return
+        try:
+            headers = {'Current_web_portal': 'StudentVUE'}
+            async with self.post('/PXP2_GradeBook.aspx?AGU=0', headers=headers) as response:
+                html = await response.text()
+                self._register_focus_data(html)
+                self.default_grading_period = gu = next(g['GU'] for g in self.grading_periods.values() if g['defaultFocus'])
+                self._register_gradebook(html, gu)
+        except Exception:
+            self.invalidate_cache()
+            raise
+        else:
+            self._gradebook_loaded = True
 
     def _register_gradebook(self, html: str, gu: str) -> None:
         self._gradebooks[gu] = bs4.BeautifulSoup(html, 'lxml')
@@ -249,6 +260,20 @@ class StudentVueScraper:
             for course in courses
         ]
 
+    async def fetch_schedule(self, date: str) -> dict[str, Any]:
+        async with self.post(
+            '/service/PXP2WebCommonService.asmx/DayContent',
+            json={'date': date},
+            headers={
+                'Current_web_portal': 'StudentVUE',
+                'Referer': self.host + '/PXP2_Calendar.aspx?AGU=0',
+                'Agu': '0',
+                'Dnt': '1',
+            }
+        ) as response:
+            data = await response.json()
+            return json.loads(data['d'])
+
     async def fetch_student_info(self) -> dict[str, Any]:
         if self.student_info:
             return self.student_info
@@ -279,6 +304,7 @@ class StudentVueScraper:
     def invalidate_cache(self) -> None:
         self._course_data.clear()
         self._gradebooks.clear()
+        self.schedules.clear()
 
     async def close(self) -> None:
         await self.session.close()
@@ -313,16 +339,7 @@ async def login(request: web.Request) -> web.Response:
 
     request.app[scrapers][token] = scraper
     student = await scraper.fetch_student_info()
-    metadata = await scraper.fetch_courses_metadata(scraper.default_grading_period)
-    await scraper.fetch_grading_policy()
-
-    out = msgpack.dumps({
-        'token': token,
-        'courseOrder': metadata,
-        'policy': scraper.general_course_metadata,
-        'student': student,
-        'gradingPeriods': scraper.grading_periods,
-    })
+    out = msgpack.dumps({'token': token, 'student': student})
     return web.Response(body=out)
 
 
@@ -350,14 +367,20 @@ async def refresh_login(request: web.Request) -> web.Response:
         del request.app[scrapers][token]
         raise
 
-    metadata = await scraper.fetch_courses_metadata(scraper.default_grading_period)
     student = await scraper.fetch_student_info()
-    await scraper.fetch_grading_policy()
+    out = msgpack.dumps({'student': student})
+    return web.Response(body=out)
 
+
+@routes.get('/grades')
+async def get_grades(request: web.Request) -> web.Response:
+    scraper = auth(request)
+    await scraper.load_gradebook()
+    metadata = await scraper.fetch_courses_metadata(scraper.default_grading_period)
+    await scraper.fetch_grading_policy()
     out = msgpack.dumps({
         'courseOrder': metadata,
         'policy': scraper.general_course_metadata,
-        'student': student,
         'gradingPeriods': scraper.grading_periods,
     })
     return web.Response(body=out)
@@ -408,6 +431,14 @@ async def get_course(request: web.Request) -> web.Response:
     except KeyError:
         return web.Response(text='invalid course ID', status=400)
     return web.Response(body=out)
+
+
+@routes.get('/schedule/{mm}/{dd}/{yyyy}')
+async def get_schedule(request: web.Request) -> web.Response:
+    scraper = auth(request)
+    info = request.match_info
+    schedule = await scraper.fetch_schedule(f"{info['mm']}/{info['dd']}/{info['yyyy']}")
+    return web.Response(body=msgpack.dumps(schedule))
 
 
 @routes.get('/photo')
