@@ -9,18 +9,21 @@ function tryInferLunchPeriod(classes: ScheduleClass[]): ScheduleClass[] {
   if (classes.some(cls => /\blunch\b/gi.test(cls.className))) return classes
 
   // A lunch period is inferred if there is a gap of at least 30 minutes between two classes and the gap is between
-  // 10:30 AM and 1:30 PM
+  // 10:45 AM and 1:30 PM
   const resolved: ScheduleClass[] = []
 
   for (let i = 0; i < classes.length; i++) {
+    const current = classes[i]
+    if (current.startTime === current.endTime)
+      continue
+
     resolved.push(classes[i])
     if (i + 1 < classes.length) {
-      const current = classes[i]
       const next = classes[i + 1]
       const currentEnd = new Date(`01/01/2000 ${current.endTime}`).getTime()
       const nextStart = new Date(`01/01/2000 ${next.startTime}`).getTime()
 
-      if (currentEnd <= new Date('01/01/2000 10:30 AM').getTime()) continue
+      if (currentEnd <= new Date('01/01/2000 10:45 AM').getTime()) continue
       if (nextStart >= new Date('01/01/2000 1:30 PM').getTime()) continue
 
       if (nextStart - currentEnd >= 30 * 60 * 1000) {
@@ -45,7 +48,7 @@ function ScheduleInner({ schedules }: { schedules: Schedules }) {
   const isMobile = createMediaQuery('(max-width: 768px)')
 
   return (
-    <>
+    <Show when={schedule()} fallback="No schedule found">
       <div class="rounded-xl bg-0 p-4 flex flex-col mb-2">
         <h2 class="font-title text-lg font-medium">
           Schedule for {new Date(Date.parse(schedules.date)).toLocaleDateString('en-US', { month: 'long', day: 'numeric' })}
@@ -106,7 +109,7 @@ function ScheduleInner({ schedules }: { schedules: Schedules }) {
           </tbody>
         </table>
       </div>
-    </>
+    </Show>
   )
 }
 
