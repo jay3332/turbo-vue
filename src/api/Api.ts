@@ -3,10 +3,13 @@ import {
   Assignment,
   Course,
   CourseMetadata,
-  DistrictInfo, GetGradebookResponse,
+  DistrictInfo, 
+  GetGradebookResponse,
   GradingPeriod,
   GradingPolicy,
-  LoginResponse, Schedules,
+  LoginResponse,
+  MeasureType,
+  Schedules,
   StudentInfo
 } from "./types";
 import {createRoot, createSignal, Signal} from "solid-js";
@@ -21,6 +24,15 @@ export type CustomAssignment = Assignment & {
 
 export function createAssignment(base: Assignment, isCustom: boolean): CustomAssignment {
   return {...base, isCustom}
+}
+
+export function computeWeight(measureType: MeasureType): number {
+  if (!isMCPS()) return measureType.weight / 100
+  switch (measureType.name) {
+    case 'All Tasks / Assessments': return 0.9
+    case 'Practice / Preparation': return 0.1
+    default: return measureType.weight / 100
+  }
 }
 
 export interface CustomCourse {
@@ -119,7 +131,7 @@ export class Gradebook {
     const [weight, ratio] = this.policy.measureTypes
       .map(type => [
         type.id,
-        type.weight / 100,
+        computeWeight(type),
         this.maxAssignmentPoints(gradingPeriod, courseId, type.id, assignments),
         adjustments?.[type.id] ?? [0, 0],
       ] as const)
