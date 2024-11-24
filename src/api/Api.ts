@@ -15,8 +15,8 @@ import {someIterator} from "../utils";
 import GradingPolicy from "./GradingPolicy";
 import WeightingPolicy from "./WeightingPolicy";
 
-// export const BASE_URL = 'https://turbovue-api.jay3332.tech'
-export const BASE_URL = 'http://127.0.0.1:8051'
+export const BASE_URL = 'https://turbovue-api.jay3332.tech'
+// export const BASE_URL = 'http://127.0.0.1:8051'
 
 export type CustomAssignment = Assignment & {
   isCustom?: boolean
