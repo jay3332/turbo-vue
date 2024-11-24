@@ -1,28 +1,18 @@
-import {useParams} from "@solidjs/router";
 import {createAssignment, CustomAssignment, getApi, Gradebook} from "../api/Api";
 import {Accessor, createEffect, createMemo, createSignal, For, on, Setter, Show} from "solid-js";
 import Icon from "../components/icons/Icon";
 import Xmark from "../components/icons/svg/Xmark";
-import {MeasureType} from "../api/types";
 import Plus from "../components/icons/svg/Plus";
 import ChevronUp from "../components/icons/svg/ChevronUp";
-import {isMCPS} from "../utils";
+import {useNumericParams} from "../utils";
 
 import tooltip from "../directives/tooltip";
 import CaretUp from "../components/icons/svg/CaretUp";
 import CaretDown from "../components/icons/svg/CaretDown";
+import {Weight} from "../api/WeightingPolicy";
 void tooltip
 
 const NOT_FOR_GRADING = 'not-for-grading'
-
-function sanitizeCategoryType(category: string) {
-  if (!isMCPS()) return category
-  switch (category) {
-    case 'All Tasks / Assessments': return 'All Tasks'
-    case 'Practice / Preparation': return 'Practice/Prep'
-    default: return category
-  }
-}
 
 const transform = (value: string) => parseFloat(value.replaceAll(',', '')).toString()
 
@@ -36,50 +26,48 @@ type AssignmentProps = {
 }
 
 function AssignmentDetails(props: AssignmentProps) {
-  const api = getApi()!
-  const {gradingPeriod, courseId} = useParams()
-  const key = `${gradingPeriod}:${courseId}`
+  const {gradingPeriod, courseId} = useNumericParams()
+  const key = () => `${gradingPeriod()!}:${courseId()!}` as const
+
+  const modifiedCourse = () => gradebook.modifiedCourses.get(key())
 
   const [name, setName] = createSignal(props.assignment.name ?? 'Unnamed Assignment')
-  const [category, setCategory] = createSignal(props.assignment.category)
+  const [category, setCategory] = createSignal(props.assignment.type)
   const [score, setScore] = createSignal(props.assignment.score)
   const [maxScore, setMaxScore] = createSignal(props.assignment.maxScore)
-  const [measureTypeId, setMeasureTypeId] = createSignal(props.assignment.measureTypeId)
-  const [forGrading, setForGrading] = createSignal(props.assignment.isForGrading)
+  const [forGrading, setForGrading] = createSignal(!props.assignment.notForGrading)
 
   const formatPercent = (r: number) => new Intl.NumberFormat('en-US', {style: 'percent', maximumFractionDigits: 2}).format(r)
 
-  const ratio = createMemo(() => parseFloat(score()!) / parseFloat(maxScore()))
+  const ratio = createMemo(() => score()! / maxScore()!)
+  const weight = () => gradebook.weighting.weights.get(category())
   const formattedPercent = createMemo(() => isNaN(ratio()) ? '-' : formatPercent(ratio()))
 
   const gradebook = props.gradebook
   const impact = createMemo(() => score() == null || !forGrading() ? NaN : (
     props.baseRatio - gradebook.calculateWeightedPointRatio(
-      gradingPeriod, parseInt(courseId), { [measureTypeId()]: [-score()!, -maxScore()] }
+      gradingPeriod()!, courseId()!, { [category()]: [-score()!, -maxScore()!] }
     )
   ))
-
   const dueDate = props.assignment.dueDate
-  const scoreType = props.assignment.reportCardScoreTypeId
 
   createEffect(on(
-    [name, category, score, maxScore, measureTypeId, forGrading],
-    ([name, category, score, maxScore, measureTypeId, forGrading]) => {
+    [name, category, score, maxScore, forGrading],
+    ([name, category, score, maxScore, forGrading]) => {
       const updated = {
         ...props.assignment,
         name,
-        category,
+        type: category,
         score,
         maxScore,
-        measureTypeId,
-        isForGrading: forGrading,
+        notForGrading: !forGrading,
       }
-      const course = gradebook.modifiedCourses.get(key)!
-      const modified = course.assignments.map((old, j) => (
+      const modified = modifiedCourse()!.assignments.map((old, j) => (
         props.idx() == j ? updated : {...old}
       ))
       props.ack(false)
-      gradebook.modifiedCourses.set(key, { assignments: modified, needsRollback: true })
+      const old = gradebook.modifiedCourses.get(key())!
+      gradebook.modifiedCourses.set(key(), { ...old, assignments: modified, needsRollback: true })
     },
     { defer: true }
   ))
@@ -102,17 +90,14 @@ function AssignmentDetails(props: AssignmentProps) {
               if (categorySelectRef!.value == NOT_FOR_GRADING)
                 return setForGrading(false)
 
-              const value = parseInt(categorySelectRef!.value)
-              setMeasureTypeId(value)
-              const name = gradebook.policy.measureTypes.find(m => m.id == value)!.name
-              setCategory(name)
+              setCategory(categorySelectRef!.value)
               setForGrading(true)
             }}
           >
-            <For each={gradebook.policy.measureTypes}>
-              {measureType => (
-                <option value={measureType.id} selected={forGrading() && measureTypeId() == measureType.id}>
-                  {measureType.name}
+            <For each={[...gradebook.weighting.weights.values()]}>
+              {(weight) => (
+                <option value={weight.name} selected={forGrading() && category() == weight.name}>
+                  {weight.name}
                 </option>
               )}
             </For>
@@ -120,11 +105,15 @@ function AssignmentDetails(props: AssignmentProps) {
           </select>
           <button class="w-full flex items-center justify-center">
             {forGrading() ? (
-              <span class="font-light text-sm">
-                {sanitizeCategoryType(category())}
-              </span>
+              <>
+                <span class="font-light text-sm block mobile:hidden">{weight()?.colloquial ?? category()}</span>
+                <span class="font-light text-sm hidden mobile:block">{weight()?.short ?? category()}</span>
+              </>
             ) : (
-              <span class="font-light text-sm text-highlight">Not for Grading</span>
+              <>
+                <span class="font-light text-sm text-highlight block mobile:hidden">Not for Grading</span>
+                <span class="font-light text-sm text-highlight hidden mobile:block">--</span>
+              </>
             )}
             <Icon icon={ChevronUp} class="transform rotate-180 ml-1.5 w-3 h-3 fill-fg" />
           </button>
@@ -135,12 +124,12 @@ function AssignmentDetails(props: AssignmentProps) {
           <div class="flex w-full justify-center">
             <button
               class="flex flex-col px-2 py-1 -mx-2 -my-1 items-center rounded-lg relative group hover:bg-fg/10 transition"
-              onClick={() => setScore('0')}
+              onClick={() => setScore(0)}
             >
               <span class="text-sm group-hover:hidden">Not Graded</span>
               <span class="text-sm hidden group-hover:block">Add Score</span>
               <span class="text-xs font-light text-white/70">
-                {parseFloat(maxScore()).toLocaleString()} Pts Possible
+                {(maxScore() ?? 0).toLocaleString()} Pts Possible
               </span>
             </button>
           </div>
@@ -149,30 +138,30 @@ function AssignmentDetails(props: AssignmentProps) {
             <sup>
               <input
                 style={{
-                  color: `rgb(var(--c-${gradebook.calculateScoreStyle(scoreType, ratio())}))`,
-                  width: `${transform(score()!).length}ch`,
+                  color: `rgb(${gradebook.policy.getMark(ratio()).color})`,
+                  width: `${transform(score()?.toString() ?? '0').length}ch`,
                 }}
                 class="font-bold text-base text-right focus:outline-none bg-transparent"
                 type="number"
                 inputMode="decimal"
-                value={transform(score()!)}
+                value={score() ?? 0}
                 onInput={e => {
-                  if (e.currentTarget.value === '') return setScore('0')
-                  setScore(e.currentTarget.value as any)
+                  if (e.currentTarget.value === '') return setScore(0)
+                  setScore(parseFloat(e.currentTarget.value as any))
                 }}
               />
             </sup>
             <span class="text-fg/70 font-light text-lg">&frasl;</span>
             <sub>
               <input
-                style={{width: `${transform(maxScore()!).length}ch`}}
+                style={{width: `${transform(maxScore()?.toString() ?? '0').length}ch`}}
                 class="text-fg/60 font-light text-sm focus:outline-none bg-transparent"
                 type="number"
                 inputMode="decimal"
-                value={transform(maxScore()!)}
+                value={maxScore() ?? 0}
                 onInput={e => {
-                  if (e.currentTarget.value === '') return setScore('1')
-                  setMaxScore(e.currentTarget.value as any)
+                  if (e.currentTarget.value === '') return setScore(1)
+                  setMaxScore(parseFloat(e.currentTarget.value as any))
                 }}
               />
             </sub>
@@ -195,8 +184,9 @@ function AssignmentDetails(props: AssignmentProps) {
       </td>
       <td class="text-center">
         <button class="mt-1.5" onClick={() => {
-          const modified = gradebook.modifiedCourses.get(key)!.assignments.filter((_, j) => j != props.idx())
-          gradebook.modifiedCourses.set(key, { assignments: modified, needsRollback: true })
+          const old = modifiedCourse()!
+          const modified = old.assignments.filter((_, j) => j != props.idx())
+          gradebook.modifiedCourses.set(key(), { ...old, assignments: modified, needsRollback: true })
           props.setAssignments(modified)
         }}>
           <Icon
@@ -211,32 +201,31 @@ function AssignmentDetails(props: AssignmentProps) {
 }
 
 type WPBProps = {
-  gradebook: Gradebook, gradingPeriod: string, courseId: number, measureType: MeasureType, scoreType: number
+  gradebook: Gradebook, gradingPeriod: number, courseId: number, policy: Weight
 }
 
 function WeightProgressBar(props: WPBProps) {
   const points = createMemo(() =>
-    props.gradebook.totalAssignmentPoints(props.gradingPeriod, props.courseId, props.measureType.id))
+    props.gradebook.totalAssignmentPoints(props.gradingPeriod, props.courseId, props.policy.name))
   const maxPoints = createMemo(() =>
-    props.gradebook.maxAssignmentPoints(props.gradingPeriod, props.courseId, props.measureType.id))
+    props.gradebook.maxAssignmentPoints(props.gradingPeriod, props.courseId, props.policy.name))
 
   const ratio = () => points() / maxPoints()
-  const style = () => props.gradebook.calculateScoreStyle(props.scoreType, ratio())
+  const style = () => props.gradebook.policy.getMark(ratio()).color
 
   return (
     <Show when={points() || maxPoints()}>
       <div class="relative flex-grow mx-2 mt-2 bg-bg-3/80 rounded-lg h-12 overflow-hidden">
         <div
           class="opacity-20 h-full"
-          style={{ width: `${Math.max(0.0, Math.min(1.0, ratio())) * 100}%`, background: `rgb(var(--c-${style()}))` }}
+          style={{ width: `${Math.max(0.0, Math.min(1.0, ratio())) * 100}%`, background: `rgb(${style()})` }}
         />
         <div class="absolute z-10 flex px-3 inset-0 w-full h-full items-center justify-between">
-          <h2 class="font-title font-bold text-medium">{props.measureType.name}</h2>
+          <h2 class="font-title font-bold text-medium block mobile:hidden">{props.policy.name}</h2>
+          <h2 class="font-title font-bold text-medium hidden mobile:block">{props.policy.colloquial}</h2>
           <div class="flex items-center">
             <div class="mt-1 mr-8 mobile-xs:mr-0">
-              <sup class="font-bold text-base text-right">
-                {points()}
-              </sup>
+              <sup class="font-bold text-base text-right">{points()}</sup>
               <span class="text-fg/70 font-light text-lg">&frasl;</span>
               <sub class="font-light text-fg/60">{maxPoints()}</sub>
             </div>
@@ -253,11 +242,12 @@ function WeightProgressBar(props: WPBProps) {
 export default function Assignments() {
   const api = getApi()!
   const gradebook = api.gradebook!
-  const params = useParams()
-  const key = () => `${params.gradingPeriod}:${params.courseId}`
+
+  const {gradingPeriod, courseId} = useNumericParams()
+  const key = () => `${gradingPeriod()!}:${courseId()!}` as const
+
   const course = createMemo(() => gradebook.courses.get(key()))
-  const scoreType = createMemo(() => course()!.classGrades[0].reportCardScoreTypeId)
-  const ratio = createMemo(() => gradebook.calculateWeightedPointRatio(params.gradingPeriod, parseInt(params.courseId)))
+  const ratio = createMemo(() => gradebook.calculateWeightedPointRatio(gradingPeriod()!, courseId()!))
   const [assignments, setAssignments] = createSignal<CustomAssignment[]>([])
 
   createEffect(() => {
@@ -272,7 +262,8 @@ export default function Assignments() {
   createEffect(on(
     [assignments, needsRollback], ([assignments, needsRollback]) => {
       setAcked(false)
-      gradebook.modifiedCourses.set(key(), { assignments, needsRollback })
+      const old = gradebook.modifiedCourses.get(key())!
+      gradebook.modifiedCourses.set(key(), { ...old, assignments, needsRollback })
     },
     { defer: true }
   ))
@@ -289,25 +280,17 @@ export default function Assignments() {
   ))
 
   const addAssignment = () => {
-    const measureType = gradebook.policy.measureTypes[0]
+    const weightType = gradebook.weighting.weights.values().next()
     const dummyAssignment = createAssignment({
-      category: measureType.name,
-      commentCode: null,
-      dueDate: 'Custom Assignment',
-      excused: false,
-      gradeBookCategoryId: 0,
-      gradeBookId: 0,
-      gradeBookScoreTypeId: scoreType(),
-      gradingPeriodId: 0,
-      isForGrading: true,
-      maxScore: '0',
-      maxValue: 0,
-      measureTypeId: measureType.id,
+      gradebookId: 0,
       name: 'New Assignment',
-      reportCardScoreTypeId: scoreType(),
-      score: '0',
-      studentId: gradebook.policy.students[0].id,
-      week: '',
+      type: weightType.value?.name ?? 'Assignment',
+      date: 'Custom Assignment',
+      dueDate: 'Custom Assignment',
+      description: null,
+      notForGrading: false,
+      score: 0,
+      maxScore: 0,
     }, true)
     const modified = [dummyAssignment, ...gradebook.modifiedCourses.get(key())!.assignments]
     setAssignments(modified)
@@ -317,14 +300,13 @@ export default function Assignments() {
   return (
     <div class="flex flex-col overflow-auto">
       <div class="flex flex-col">
-        <For each={gradebook.policy.measureTypes}>
-          {(measureType) => (
+        <For each={[...gradebook.weighting.weights.values()]}>
+          {(policy) => (
             <WeightProgressBar
               gradebook={gradebook}
-              gradingPeriod={params.gradingPeriod}
-              courseId={parseInt(params.courseId)}
-              measureType={measureType}
-              scoreType={scoreType()}
+              gradingPeriod={gradingPeriod()!}
+              courseId={courseId()!}
+              policy={policy}
             />
           )}
         </For>

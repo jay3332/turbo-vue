@@ -9,6 +9,7 @@ import {someIterator} from "../utils";
 import RotateLeft from "./icons/svg/RotateLeft";
 import ChevronUp from "./icons/svg/ChevronUp";
 import Check from "./icons/svg/Check";
+import {Course} from "../api/types";
 void tooltip
 
 function ActionIcon(props: { icon: IconElement }) {
@@ -60,10 +61,12 @@ function CourseActions() {
     if (!gb) return false
 
     return params.courseId
-      ? gb.modifiedCourses.get(`${params.gradingPeriod}:${params.courseId}`)?.needsRollback
+      ? gb.modifiedCourses.get(`${params.gradingPeriod as any}:${params.courseId as any}`)?.needsRollback
       : someIterator(gb.modifiedCourses.values(), c => c.needsRollback)
   })
-  const gradingPeriod = () => params.gradingPeriod ?? api.gradebook?.defaultGradingPeriod
+  const gradingPeriod = () =>
+    params.gradingPeriod ? parseInt(params.gradingPeriod) : api.gradebook?.defaultGradingPeriod ?? 0
+  const courseId = () => params.courseId ? parseInt(params.courseId) : null
 
   return (
     <Show when={gradebook()}>
@@ -78,7 +81,7 @@ function CourseActions() {
           class="!justify-between w-full px-4"
         >
           <span class="font-title font-bold select-none">
-            {gradebook()!.gradingPeriods[gradingPeriod()].Name}
+            {gradebook()!.gradingPeriods[gradingPeriod()].name}
           </span>
           <Icon
             icon={ChevronUp}
@@ -96,11 +99,11 @@ function CourseActions() {
           <For each={Object.values(gradebook()!.gradingPeriods)}>
             {(period) => (
               <A
-                href={`/grades/${period.GU}` + (params.courseId ? `/${params.courseId}` : '')}
+                href={`/grades/${period.id}` + (params.courseId ? `/${params.courseId}` : '')}
                 class="p-2 rounded-lg hover:bg-fg/10 transition flex items-center justify-between"
               >
-                <span>{period.Name}</span>
-                <Show when={gradingPeriod() == period.GU}>
+                <span>{period.name}</span>
+                <Show when={gradingPeriod() == period.id}>
                   <Icon icon={Check} class="w-4 h-4 fill-fg" />
                 </Show>
               </A>
@@ -113,14 +116,15 @@ function CourseActions() {
           setIsRefreshing(true)
           try {
             if (params.courseId) {
-              const key = `${params.gradingPeriod}:${params.courseId}`
+              const key = `${gradingPeriod()!}:${courseId()!}` as const
               if (needsRollback())
-                return gradebook()!.populateModifiedCourse(params.gradingPeriod, gradebook()!.courses.get(key)!)
+                return gradebook()!.populateModifiedCourse(gradingPeriod(), gradebook()!.courses.get(key)!)
 
-              const {data} = await api.request(`/grades/${params.gradingPeriod}/courses/${params.courseId}`) // TODO: toast
+              const {data} = await api.request<Course[]>(`/grades/${params.gradingPeriod}`) // TODO: toast
               if (data) {
-                gradebook()!.courses.set(key, data)
-                gradebook()!.populateModifiedCourse(params.gradingPeriod, data)
+                let updated = data.find(c => c.classId === courseId())!
+                gradebook()!.courses.set(key, updated)
+                gradebook()!.populateModifiedCourse(gradingPeriod(), updated)
               }
             } else if (needsRollback()) {
               for (const course of gradebook()!.courses.values())

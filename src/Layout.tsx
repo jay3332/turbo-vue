@@ -96,7 +96,7 @@ export function Sidebar() {
           </div>
           <div class="flex flex-col justify-center">
             <h3 class="text-fg/80 font-title font-bold">{api.student.name}</h3>
-            <span class="text-fg/50 text-xs">{api.student.schoolName}</span>
+            <span class="text-fg/50 text-xs">{api.student.school}</span>
           </div>
         </div>
         <button

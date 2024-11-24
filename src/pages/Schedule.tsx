@@ -1,59 +1,38 @@
-import {getApi, Gradebook} from "../api/Api";
-import {createEffect, For, onMount, Show} from "solid-js";
-import {ScheduleClass, Schedules} from "../api/types";
-import {isMCPS, normalizeQualifiedClassName} from "../utils";
+import {getApi} from "../api/Api";
+import {createEffect, createMemo, For, onMount, Show} from "solid-js";
+import {Schedule as ScheduleData, TimeBlock} from "../api/types";
+import {normalizeQualifiedClassName} from "../utils";
 import {createMediaQuery} from "@solid-primitives/media";
 
-function tryInferLunchPeriod(classes: ScheduleClass[]): ScheduleClass[] {
-  if (!isMCPS()) return classes
-  if (classes.some(cls => /\blunch\b/gi.test(cls.className))) return classes
-
-  // A lunch period is inferred if there is a gap of at least 30 minutes between two classes and the gap is between
-  // 10:45 AM and 1:30 PM
-  const resolved: ScheduleClass[] = []
-
-  for (let i = 0; i < classes.length; i++) {
-    const current = classes[i]
-    if (current.startTime === current.endTime)
-      continue
-
-    resolved.push(classes[i])
-    if (i + 1 < classes.length) {
-      const next = classes[i + 1]
-      const currentEnd = new Date(`01/01/2000 ${current.endTime}`).getTime()
-      const nextStart = new Date(`01/01/2000 ${next.startTime}`).getTime()
-
-      if (currentEnd <= new Date('01/01/2000 10:45 AM').getTime()) continue
-      if (nextStart >= new Date('01/01/2000 1:30 PM').getTime()) continue
-
-      if (nextStart - currentEnd >= 30 * 60 * 1000) {
-        resolved.push({
-          period: 'Lunch',
-          className: 'Lunch',
-          teacherNameFNLN: '',
-          roomName: '',
-          startTime: new Date(currentEnd + 1).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
-          endTime: new Date(nextStart - 1).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
-        } as any)
-      }
-    }
-  }
-  return resolved
-}
-
-function ScheduleInner({ schedules }: { schedules: Schedules }) {
-  const api = getApi()!
-  const gradebook = () => api.gradebook
-  const schedule = () => schedules.schools[0]
+function ScheduleInner({ schedules }: { schedules: ScheduleData }) {
+  const schedule = () => schedules.today
   const isMobile = createMediaQuery('(max-width: 768px)')
+  const blocks = createMemo(() => {
+    if (schedule()) {
+      const classes = []
+      for (const block of schedule()!.timeBlocks) {
+        classes.push({
+          ...block,
+          ...schedules.classes.find(cls => cls.period === block.period)
+        })
+      }
+      return classes.sort((a, b) => Date.parse(`1/1/2000 ${a.startTime}`) - Date.parse(`1/1/2000 ${b.startTime}`))
+    }
+    return schedules.classes
+  })
 
   return (
-    <Show when={schedule()} fallback="No schedule found">
+    <>
       <div class="rounded-xl bg-0 p-4 flex flex-col mb-2">
         <h2 class="font-title text-lg font-medium">
-          Schedule for {new Date(Date.parse(schedules.date)).toLocaleDateString('en-US', { month: 'long', day: 'numeric' })}
+          Schedule for {schedule()
+            ? new Date(Date.parse(schedule()!.date)).toLocaleDateString('en-US', { month: 'long', day: 'numeric' })
+            : schedules.termName
+          }
         </h2>
-        <p class="text-fg/60 font-light text-sm">{schedule().bellSchedName}</p>
+        <Show when={schedule()}>
+          <p class="text-fg/60 font-light text-sm">{schedule()?.scheduleName}</p>
+        </Show>
       </div>
       <div class="rounded-xl overflow-hidden">
         <table class="w-full">
@@ -63,11 +42,13 @@ function ScheduleInner({ schedules }: { schedules: Schedules }) {
               <th></th>
               <th class="md:table-cell hidden">Teacher</th>
               <th class="py-3">Room</th>
-              <th>Time</th>
+              <Show when={schedule()}>
+                <th>Time</th>
+              </Show>
             </tr>
           </thead>
           <tbody>
-            <For each={tryInferLunchPeriod(schedule().classes)}>
+            <For each={blocks()}>
               {cls => (
                 <tr class="align-middle">
                   <td class="text-center px-2 mobile-xs:px-1.5 py-1">
@@ -83,33 +64,35 @@ function ScheduleInner({ schedules }: { schedules: Schedules }) {
                   <td>
                     <div class="flex flex-col py-0.5 mobile:py-1">
                       <span class="font-title text-sm">
-                        {normalizeQualifiedClassName(cls.className)}
+                        {normalizeQualifiedClassName(cls.name!)}
                       </span>
                       <span class="font-light text-xs text-fg/50 md:hidden block">
-                        {cls.teacherNameFNLN}
+                        {cls.teacher}
                       </span>
                     </div>
                   </td>
                   <td class="text-center md:table-cell hidden">
-                    <span class="font-light text-sm text-fg/80">{cls.teacherNameFNLN}</span>
+                    <span class="font-light text-sm text-fg/80">{cls.teacher}</span>
                   </td>
                   <td class="text-center">
-                    <span class="font-light text-sm text-fg/80">{cls.roomName}</span>
+                    <span class="font-light text-sm text-fg/80">{cls.room}</span>
                   </td>
-                  <td class="text-center">
-                    <span class="font-light text-sm text-fg/80">
-                      {isMobile()
-                        ? `${cls.startTime} - ${cls.endTime}`.replace(/ [AP]M/gi, '')
-                        : `${cls.startTime} - ${cls.endTime}`}
-                    </span>
-                  </td>
+                  <Show when={schedule()}>
+                    <td class="text-center">
+                      <span class="font-light text-sm text-fg/80">
+                        {isMobile()
+                          ? `${(cls as TimeBlock).startTime} - ${(cls as TimeBlock).endTime}`.replace(/ [AP]M/gi, '')
+                          : `${(cls as TimeBlock).startTime} - ${(cls as TimeBlock).endTime}`}
+                      </span>
+                    </td>
+                  </Show>
                 </tr>
               )}
             </For>
           </tbody>
         </table>
       </div>
-    </Show>
+    </>
   )
 }
 
@@ -126,9 +109,8 @@ export default function Schedule() {
   const api = getApi()!
 
   const updateSchedules = async () => {
-    if (api.schedules == null || Date.now() >= Date.parse(api.schedules.date) + 86_400_000) {
-      const today = new Date().toLocaleDateString('en-US', {month: 'numeric', day: '2-digit', year: 'numeric'})
-      const {data} = await api.request<Schedules>('/schedule/' + today)
+    if (api.schedules == null || Date.now() >= Date.parse(api.schedules.today?.date ?? '1/1/1900') + 86_400_000) {
+      const {data} = await api.request<ScheduleData>('/schedule')
       if (data) api.schedules = data
     }
   }

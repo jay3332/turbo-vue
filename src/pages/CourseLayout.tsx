@@ -5,7 +5,9 @@ import TableList from "../components/icons/svg/TableList";
 import ChartLine from "../components/icons/svg/ChartLine";
 import BullseyeArrow from "../components/icons/svg/BullseyeArrow";
 import {getApi, Gradebook} from "../api/Api";
-import Loading from "../components/Loading";
+import {Course} from "../api/types";
+import {useNumericParams} from "../utils";
+import {sanitizeCourseName} from "./Grades";
 
 function Skeleton() {
   const Tab = () => (
@@ -46,8 +48,10 @@ export default function CourseLayout(props: ParentProps) {
   const params = useParams()
   const navigate = useNavigate()
 
-  const gradingPeriod = () => params.gradingPeriod ?? api.gradebook?.defaultGradingPeriod
-  const key = () => `${gradingPeriod()}:${params.courseId}`
+  const gradingPeriod = () =>
+    params.gradingPeriod ? parseInt(params.gradingPeriod) : api.gradebook?.defaultGradingPeriod
+  const courseId = () => params.courseId ? parseInt(params.courseId) : 0
+  const key = () => `${gradingPeriod()!}:${courseId()!}` as const
 
   createEffect(async () => {
     if (!api.gradebook) {
@@ -59,19 +63,10 @@ export default function CourseLayout(props: ParentProps) {
       }
     }
     let gb = api.gradebook!
-    if (!gb.courseOrders.has(gradingPeriod())) {
-      const { data } = await api.request(`/grades/${gradingPeriod()}`)
-      if (data) {
-        gb.courseOrders.set(gradingPeriod(), data)
-      } else {
-        navigate('/')
-      }
-    }
     if (!gb.courses.has(key())) {
-      const { data } = await api.request(`/grades/${gradingPeriod()}/courses/${params.courseId}`)
+      const { data } = await api.request<Course[]>(`/grades/${gradingPeriod()}`)
       if (data) {
-        gb.courses.set(key(), data)
-        gb.populateModifiedCourse(gradingPeriod(), data)
+        gb.populateAllCourses(gradingPeriod()!, data)
       } else {
         navigate(`/grades/${gradingPeriod()}`)
       }
@@ -91,21 +86,17 @@ export default function CourseLayout(props: ParentProps) {
 export function CourseLayoutInner(props: ParentProps<{ gradebook: Gradebook }>) {
   const params = useParams()
   const gradebook = props.gradebook
-  const key = () => `${params.gradingPeriod}:${params.courseId}`
+  const {gradingPeriod, courseId} = useNumericParams()
+  const key = () => `${gradingPeriod()!}:${courseId()!}` as const
 
-  const course = createMemo(() => gradebook.courses.get(key()))
-  const metadata = createMemo(() => (
-    gradebook.courseOrders.get(params.gradingPeriod)!.find(course => course.ID.toString() == params.courseId)!
-  ))
-
-  const scoreType = createMemo(() => course()!.classGrades[0].reportCardScoreTypeId)
-  const ratio = createMemo(() => gradebook.calculateWeightedPointRatio(params.gradingPeriod, parseInt(params.courseId)))
-  const style = createMemo(() => ({color: `rgb(var(--c-${gradebook.calculateScoreStyle(scoreType()!, ratio()!)}))`}))
-  const mark = createMemo(() => gradebook.calculateMark(scoreType()!, ratio()!))
+  const course = createMemo(() => gradebook.courses.get(key())!)
+  const ratio = createMemo(() => gradebook.calculateWeightedPointRatio(gradingPeriod()!, courseId()!))
+  const mark = createMemo(() => gradebook.policy.getMark(ratio()!))
+  const style = createMemo(() => ({color: `rgb(${mark().color})`}))
 
   const location = useLocation()
   const TabButton = ({ icon, label, path }: { icon: IconElement, label: string, path?: string }) => {
-    const href = `/grades/${params.gradingPeriod}/${params.courseId}` + (path ? `/${path}` : '')
+    const href = `/grades/${gradingPeriod()!}/${courseId()!}` + (path ? `/${path}` : '')
     return (
       <A
         classList={{
@@ -125,13 +116,13 @@ export function CourseLayoutInner(props: ParentProps<{ gradebook: Gradebook }>) 
       <div class="flex flex-col mx-2 mt-2 overflow-hidden rounded-xl">
         <div class="flex justify-between p-4 bg-bg-0/80 rounded">
           <div class="flex flex-col">
-            <h1 class="font-title text-2xl mobile:text-xl">{metadata().Name}</h1>
+            <h1 class="font-title text-2xl mobile:text-xl">{sanitizeCourseName(course().name)}</h1>
             <div class="flex items-center gap-x-3">
-              <span class="text-fg/60 font-light mobile:text-sm">{metadata().TeacherName}, Room {metadata().room}</span>
+              <span class="text-fg/60 font-light mobile:text-sm">{course().teacher}, Room {course().room}</span>
             </div>
           </div>
           <div class="flex flex-col items-center justify-center">
-            <span class="font-title text-3xl" style={style()}>{mark()}</span>
+            <span class="font-title text-3xl" style={style()}>{mark().mark}</span>
             <Show when={!isNaN(ratio())}>
               <span class="text-sm" style={style()}>
                 {new Intl.NumberFormat('en-US', {style: 'percent', maximumFractionDigits: 2}).format(ratio())}

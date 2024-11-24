@@ -3,3 +3,4 @@ aiohttp_cors
 beautifulsoup4
 msgpack
 lxml
+xmljson

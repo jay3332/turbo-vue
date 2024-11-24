@@ -1,5 +1,4 @@
 import {getApi} from "../api/Api";
-import {useParams} from "@solidjs/router";
 import {createEffect, createMemo, createSignal, on, onCleanup} from "solid-js";
 import {
   Chart,
@@ -13,13 +12,24 @@ import {
 } from "chart.js";
 import 'chartjs-adapter-date-fns';
 import {Assignment} from "../api/types";
+import {useNumericParams} from "../utils";
 
 Chart.register(BubbleController, LineController, LinearScale, TimeScale, Tooltip, LineElement, PointElement)
 
+const resolve = (name: string) => {
+  const el = document.createElement('div')
+  el.style.color = `rgb(${name})`
+  document.body.appendChild(el)
+  const color = getComputedStyle(el).color
+  document.body.removeChild(el)
+  console.log(color.slice(4, -1))
+  return color.slice(4, -1)
+}
+
 export default function Analyze() {
   const gradebook = getApi()!.gradebook!
-  const params = useParams()
-  const key = createMemo(() => `${params.gradingPeriod}:${params.courseId}`)
+  const {gradingPeriod, courseId} = useNumericParams()
+  const key = createMemo(() => `${gradingPeriod()!}:${courseId()!}` as const)
   const course = createMemo(() => gradebook.courses.get(key())!)
   const assignments = createMemo(() => {
     const assignments = gradebook.modifiedCourses.get(key())!.assignments
@@ -27,11 +37,12 @@ export default function Analyze() {
   })
 
   const measureTypeOpacityMap = createMemo(() => {
-    const maxWeight = gradebook.policy.measureTypes.reduce((max, measureType) => Math.max(max, measureType.weight), 0)
-    return gradebook.policy.measureTypes.reduce((map, measureType) => {
-      map[measureType.id] = measureType.weight / maxWeight * 0.6 + 0.2
+    const weights = [...gradebook.weighting.weights.values()]
+    const maxWeight = weights.reduce((max, measureType) => Math.max(max, measureType.weight), 0)
+    return weights.reduce((map, measureType) => {
+      map[measureType.name] = measureType.weight / maxWeight * 0.6 + 0.2
       return map
-    }, {} as Record<number, number>)
+    }, {} as Record<string, number>)
   })
 
   let canvasRef: HTMLCanvasElement | null = null
@@ -41,18 +52,16 @@ export default function Analyze() {
     if (!assignments.length)
       return
 
-    const style = getComputedStyle(document.documentElement)
-    const resolve = (name: string) => style.getPropertyValue(`--c-${name}`).trim().split(' ').join(', ')
-
     const canvas = canvasRef!
-    const maxScore = assignments.reduce((max, assignment) => Math.max(max, parseFloat(assignment.maxScore)), 0)
-    const resolvedAssignments = assignments.toReversed().filter(a => a.score != null).map(a => {
-      const ratio = parseFloat(a.score!) / parseFloat(a.maxScore)
+    const style = getComputedStyle(document.documentElement)
+    const maxScore = assignments.reduce((max, assignment) => Math.max(max, assignment.maxScore ?? 0), 0)
+    const resolvedAssignments = assignments.toReversed().filter(a => a.score != null && a.maxScore != null).map(a => {
+      const ratio = a.score! / a.maxScore!
       return {
         ...a,
         ratio,
-        color: resolve(a.isForGrading && !a.excused ? gradebook.calculateScoreStyle(a.reportCardScoreTypeId, ratio) : 'fg'),
-        radius: Math.max(1, parseFloat(a.maxScore) / maxScore * 15),
+        color: resolve(!a.notForGrading ? gradebook.policy.getMark(ratio).color : 'var(--c-fg)'),
+        radius: Math.max(1, a.maxScore! / maxScore * 15),
       } as Assignment & { ratio: number, color: string, radius: number }
     })
 
@@ -61,8 +70,8 @@ export default function Analyze() {
     const elapsed = endTime - startTime
     const padding = elapsed * 0.04
 
-    Chart.defaults.color = `rgb(${resolve('fg')}, 0.8)`
-    Chart.defaults.borderColor = `rgba(${resolve('fg')}, 0.1)`
+    Chart.defaults.color = `rgb(${resolve('var(--c-fg)')}, 0.8)`
+    Chart.defaults.borderColor = `rgba(${resolve('var(--c-fg)')}, 0.1)`
     Chart.defaults.font.family = style.getPropertyValue('font-family')
     Chart.defaults.font.weight = 'normal'
 
@@ -71,8 +80,8 @@ export default function Analyze() {
     const lineColors = []
     for (const assignment of assignments.toReversed()) {
       accumulated.push(assignment)
-      const ratio = gradebook.calculateWeightedPointRatio(params.gradingPeriod, parseInt(params.courseId), undefined, accumulated)
-      lineColors.push(`rgb(${resolve(gradebook.calculateScoreStyle(assignment.reportCardScoreTypeId, ratio))})`)
+      const ratio = gradebook.calculateWeightedPointRatio(gradingPeriod()!, courseId()!, undefined, accumulated)
+      lineColors.push(`rgb(${resolve(gradebook.policy.getMark(ratio).color)})`)
       dataset.push({
         x: new Date(assignment.dueDate).getTime(),
         y: ratio * 100,
@@ -109,11 +118,11 @@ export default function Analyze() {
             filter: (context: any) => context.datasetIndex === 0,
             callbacks: {
               title: (context: any) => context.map((ctx: any) => resolvedAssignments[ctx.dataIndex].name),
-              beforeLabel: (ctx: any) => resolvedAssignments[ctx.dataIndex].category,
+              beforeLabel: (ctx: any) => resolvedAssignments[ctx.dataIndex].type,
               label: (context: any) => {
                 const assignment = resolvedAssignments[context.dataIndex]
                 return [
-                  `Score: ${parseFloat(assignment.score!)}/${parseFloat(assignment.maxScore)} `
+                  `Score: ${assignment.score!}/${assignment.maxScore} `
                   + `(${(assignment.ratio * 100).toFixed(2)}%)`,
                   `Date: ${new Date(assignment.dueDate).toLocaleDateString()}`,
                 ]
@@ -130,10 +139,10 @@ export default function Analyze() {
             data: resolvedAssignments.map(assignment => ({
               x: new Date(assignment.dueDate).getTime(),
               y: assignment.ratio * 100,
-              r: parseFloat(assignment.maxScore),
+              r: assignment.maxScore!,
             })),
             backgroundColor: resolvedAssignments.map(assignment => `rgba(${assignment.color}, ${
-              assignment.isForGrading && !assignment.excused ? measureTypeOpacityMap()[assignment.measureTypeId] : 0.2
+              !assignment.notForGrading ? measureTypeOpacityMap()[assignment.type] : 0.2
             })`),
             borderColor: resolvedAssignments.map(assignment => `rgb(${assignment.color})`),
             radius: resolvedAssignments.map(assignment => assignment.radius),
@@ -165,7 +174,7 @@ export default function Analyze() {
                   const y = lowestTick + step * i
                   gradient.addColorStop(
                     i / 20,
-                    `rgb(${resolve(gradebook.calculateScoreStyle(gradebook.policy.defaultReportCardScoreTypeId, y / 100))})`,
+                    `rgb(${resolve(gradebook.policy.getMark(y / 100).color)})`,
                   )
                 }
                 return gradient
@@ -173,6 +182,8 @@ export default function Analyze() {
             },
             pointRadius: 0,
             pointStyle: false,
+            tension: 0.4,
+            cubicInterpolationMode: 'monotone',
           }
         ]
       },

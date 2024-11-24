@@ -1,3 +1,5 @@
+import {useParams} from "@solidjs/router";
+
 /**
  * Capitalizes a string.
  * @param s The string to capitalize.
@@ -28,4 +30,12 @@ export function normalizeQualifiedClassName(name: string) {
 
   const [,, course] = match
   return course
+}
+
+export function useNumericParams() {
+  const params = useParams()
+  return {
+    gradingPeriod: () => params.gradingPeriod ? parseInt(params.gradingPeriod) : null,
+    courseId: () => params.courseId ? parseInt(params.courseId) : null,
+  }
 }

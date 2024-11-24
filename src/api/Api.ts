@@ -2,18 +2,21 @@ import msgpack from 'msgpack-lite';
 import {
   Assignment,
   Course,
-  CourseMetadata,
-  DistrictInfo, GetGradebookResponse,
+  DistrictInfo,
+  GradebookInfo,
   GradingPeriod,
-  GradingPolicy,
-  LoginResponse, Schedules,
+  LoginResponse,
+  Schedule,
   StudentInfo
 } from "./types";
 import {createRoot, createSignal, Signal} from "solid-js";
 import {ReactiveMap} from "@solid-primitives/map";
-import {isMCPS} from "../utils";
+import {someIterator} from "../utils";
+import GradingPolicy from "./GradingPolicy";
+import WeightingPolicy from "./WeightingPolicy";
 
-export const BASE_URL = 'https://turbovue-api.jay3332.tech'
+// export const BASE_URL = 'https://turbovue-api.jay3332.tech'
+export const BASE_URL = 'http://127.0.0.1:8051'
 
 export type CustomAssignment = Assignment & {
   isCustom?: boolean
@@ -24,203 +27,175 @@ export function createAssignment(base: Assignment, isCustom: boolean): CustomAss
 }
 
 export interface CustomCourse {
+  gradingPeriod: number
+  classId: number
   assignments: CustomAssignment[]
   needsRollback: boolean
 }
 
+type CourseId = `${number}:${number}`
+
 export class Gradebook {
-  courses: ReactiveMap<string, Course>
-  modifiedCourses: ReactiveMap<string, CustomCourse>
-  courseOrders: ReactiveMap<string, CourseMetadata[]>
+  courses: ReactiveMap<CourseId, Course>
+  modifiedCourses: ReactiveMap<CourseId, CustomCourse>
+  loadedGradingPeriods: Signal<number[]>
 
   constructor(
     public api: Api,
     public policy: GradingPolicy,
-    public gradingPeriods: Record<string, GradingPeriod>,
-    defaultCourseOrder: CourseMetadata[],
+    public weighting: WeightingPolicy,
+    public gradingPeriods: GradingPeriod[],
+    public defaultGradingPeriod: number,
+    coursesForDefaultGP: Course[],
   ) {
     this.courses = new ReactiveMap()
     this.modifiedCourses = new ReactiveMap()
-
-    this.courseOrders = new ReactiveMap()
-    this.courseOrders.set(this.defaultGradingPeriod, defaultCourseOrder)
-    let {} = this.updateAllCourses()
+    this.loadedGradingPeriods = createSignal<number[]>([])
+    this.populateAllCourses(this.defaultGradingPeriod, coursesForDefaultGP)
   }
 
-  static fromResponse(api: Api, response: GetGradebookResponse): Gradebook {
-    return new Gradebook(api, response.policy, response.gradingPeriods, response.courseOrder)
+  static fromResponse(api: Api, response: GradebookInfo): Gradebook {
+    return new Gradebook(
+      api,
+      GradingPolicy.mcps(), // TODO: customizable grading policies?
+      WeightingPolicy.mcps(), // TODO: customizable weighting policies?
+      response.gradingPeriods,
+      response.defaultGradingPeriod,
+      response.courses[response.defaultGradingPeriod as any],
+    )
   }
 
-  get defaultGradingPeriod(): string {
-    return Object.values(this.gradingPeriods).find((period) => period.defaultFocus)!.GU
-  }
-
-  async updateAllCourses(gradingPeriod?: string) {
+  async updateAllCourses(gradingPeriod?: number) {
     gradingPeriod ??= this.defaultGradingPeriod;
-    const {data, error} = await this.api.request(`/grades/${gradingPeriod}/courses`);
+    const {data, error} = await this.api.request(`/grades/${gradingPeriod}`);
     if (error) throw new Error(error);
     this.populateAllCourses(gradingPeriod, data)
   }
 
-  populateAllCourses(gradingPeriod: string, courses: Course[]) {
+  populateAllCourses(gradingPeriod: number, courses: Course[]) {
     for (const course of courses) {
       this.courses.set(`${gradingPeriod}:${course.classId}`, course);
       this.populateModifiedCourse(gradingPeriod, course)
     }
+    const [, setLoaded] = this.loadedGradingPeriods
+    setLoaded(p => [...p, gradingPeriod])
   }
 
-  populateModifiedCourse(gradingPeriod: string, course: Course) {
+  populateModifiedCourse(gradingPeriod: number, course: Course) {
     const assignments = course.assignments.sort((a, b) => (
       new Date(b.dueDate).getTime() - new Date(a.dueDate).getTime()
     )).map(assignment => createAssignment(assignment, false))
 
     this.modifiedCourses.set(`${gradingPeriod}:${course.classId}`, {
+      gradingPeriod,
+      classId: course.classId,
       assignments, needsRollback: false
     })
   }
 
   private totalAssignmentPointsBy(
     transform: (a: CustomAssignment) => number,
-    gradingPeriod: string,
+    gradingPeriod: number,
     courseId: number,
-    categoryId?: number,
+    category?: string,
     assignments?: CustomAssignment[],
   ): number {
     assignments ??= this.modifiedCourses.get(`${gradingPeriod}:${courseId}`)!.assignments;
     return assignments
       .filter(assignment =>
-        assignment.isForGrading
+        !assignment.notForGrading
         && assignment.score != null
-        && (categoryId != null ? assignment.measureTypeId === categoryId : true)
+        && (category != null ? assignment.type === category : true)
       )
       .reduce((acc, assignment) => acc + transform(assignment), 0)
   }
 
   totalAssignmentPoints(
-    gradingPeriod: string, courseId: number, categoryId?: number,
+    gradingPeriod: number, courseId: number, category?: string,
     assignments?: CustomAssignment[],
   ): number {
-    return this.totalAssignmentPointsBy(a => parseFloat(a.score!), gradingPeriod, courseId, categoryId, assignments)
+    return this.totalAssignmentPointsBy(a => a.score ?? 0, gradingPeriod, courseId, category, assignments)
   }
 
   maxAssignmentPoints(
-    gradingPeriod: string, courseId: number, categoryId?: number,
+    gradingPeriod: number, courseId: number, category?: string,
     assignments?: CustomAssignment[],
   ): number {
-    return this.totalAssignmentPointsBy(a => parseFloat(a.maxScore), gradingPeriod, courseId, categoryId, assignments)
+    return this.totalAssignmentPointsBy(a => a.maxScore ?? 0, gradingPeriod, courseId, category, assignments)
   }
 
   calculateWeightedPointRatio(
-    gradingPeriod: string,
+    gradingPeriod: number,
     courseId: number,
-    adjustments?: Record<number, [number, number]>,
+    adjustments?: Record<string, [number, number]>,
     assignments?: CustomAssignment[],
   ): number {
-    const [weight, ratio] = this.policy.measureTypes
+    const [weight, ratio] = [...this.weighting.weights.values()]
       .map(type => [
-        type.id,
-        type.weight / 100,
-        this.maxAssignmentPoints(gradingPeriod, courseId, type.id, assignments),
-        adjustments?.[type.id] ?? [0, 0],
+        type.name,
+        type.weight,
+        this.maxAssignmentPoints(gradingPeriod, courseId, type.name, assignments),
+        adjustments?.[type.name] ?? [0, 0],
       ] as const)
-      .filter(([_id, _weight, total, _adjustment]) => !!total)
-      .map(([id, weight, total, [extraPoints, extraTotal]]) => [
+      .filter(([_weightName, _weight, total, _adjustment]: any) => !!total)
+      .map(([weightName, weight, total, [extraPoints, extraTotal]]: any) => [
         weight,
-        (this.totalAssignmentPoints(gradingPeriod, courseId, id, assignments) + extraPoints)
+        (this.totalAssignmentPoints(gradingPeriod, courseId, weightName, assignments) + extraPoints)
         / (total + extraTotal)
         * weight,
       ])
-      .filter(([_weight, ratio]) => !isNaN(ratio))
-      .reduce(([a, b], [weight, ratio]) => [a + weight, b + ratio], [0, 0])
+      .filter(([_weight, ratio]: any) => !isNaN(ratio))
+      .reduce(([a, b], [weight, ratio]: any) => [a + weight, b + ratio], [0, 0])
 
     return ratio / weight // Normalize ratio (e.g. if cum_weights=0.5, ratio should be normalized as ratio / 0.5)
   }
 
-  calculateMark(scoreType: number, ratio: number): string {
-    const policy = this.policy.reportCardScoreTypes.find((type) => type.id === scoreType)!;
-    if (isNaN(ratio) || !policy || policy.max == -1) return 'N/A'; // No max, so no percentage
-
-    if (isMCPS()) {
-      if (ratio >= 0.895) return 'A'
-      else if (ratio >= 0.795) return 'B'
-      else if (ratio >= 0.695) return 'C'
-      else if (ratio >= 0.595) return 'D'
-      else return 'E'
-    }
-
-    for (const boundary of policy.details.sort((a, b) => b.lowScore - a.lowScore)) {
-      if (ratio >= boundary.lowScore / policy.max) return boundary.score;
-    }
-    return 'N/A';
-  }
-
-  private mcpsGpaValue(mark: string, weighted: boolean): number | null {
-    const extra = weighted ? 1 : 0
-    switch (mark) {
-      case 'A': return 4 + extra
-      case 'B': return 3 + extra
-      case 'C': return 2 + extra
-      case 'D': return 1
-      case 'E': return 0
-      default: return null
-    }
-  }
-
-  isMcpsCourseWeighted(name: string): boolean {
+  isCourseWeighted(name: string): boolean { // TODO: make platform agnostic
     return ['AP', 'Hon', 'Honors', 'Adv', 'Advanced', 'Mag', 'Magnet', 'IB'].some(term => name.includes(term))
   }
 
-  calculateMcpsGpa(gradingPeriod: string): { weighted: number, unweighted: number } {
-    let totalWeighted = 0, totalUnweighted = 0, count = 0
-    const getMark = (ratio: number) => this.calculateMark(this.policy.defaultReportCardScoreTypeId, ratio)
-
-    for (const course of this.courseOrders.get(gradingPeriod)!) {
-      const modified = this.modifiedCourses.get(`${gradingPeriod}:${course.ID}`)
-      const mark = modified != null
-        ? getMark(this.calculateWeightedPointRatio(gradingPeriod, course.ID))
-        : (
-          /\d/.test(course.markPreview) ? getMark(parseFloat(course.markPreview)) : course.markPreview
-        )
-
-      const weighted = this.mcpsGpaValue(mark, this.isMcpsCourseWeighted(course.Name))
-      if (weighted != null) {
-        totalWeighted += weighted
-        totalUnweighted += this.mcpsGpaValue(mark, false) ?? 0
-        count++
-      }
+  sortedCourses(gradingPeriod: number): Course[] {
+    let courses = [];
+    for (const [key, course] of this.courses.entries()) {
+      if (!key.startsWith(`${gradingPeriod}:`)) continue
+      courses.push(course)
     }
+    return courses.sort((a, b) => a.period - b.period)
+  }
 
-    return {
-      weighted: totalWeighted / count,
-      unweighted: totalUnweighted / count,
+  isGPLoaded(gradingPeriod: number): boolean {
+    const [loaded] = this.loadedGradingPeriods
+    return loaded().includes(gradingPeriod)
+  }
+
+  * walkCourses(gradingPeriod: number) {
+    for (const [key, course] of this.courses.entries()) {
+      if (!key.startsWith(`${gradingPeriod}:`)) continue
+      yield course
     }
   }
 
-  calculateScoreStyle(scoreType: number, ratio: number): string {
-    const policy = this.policy.reportCardScoreTypes.find((type) => type.id === scoreType)!;
-    if (policy.max == -1) return 'fg'; // No max, so no percentage
-    if (ratio >= 1.0) return 'scale-6';
-    if (ratio <= 0.0) return 'scale-0';
+  calculateGpa(gradingPeriod: number): { weighted: number, unweighted: number } {
+    let totalWeighted = 0, totalUnweighted = 0;
+    let countWeighted = 0, countUnweighted = 0;
+    const getMark = (ratio: number) => this.policy.getMark(ratio)
 
-    if (isMCPS()) {
-      if (isNaN(ratio)) return 'fg'
-      else if (ratio >= 0.895) return 'scale-5'
-      else if (ratio >= 0.795) return 'scale-4'
-      else if (ratio >= 0.695) return 'scale-3'
-      else if (ratio >= 0.595) return 'scale-2'
-      else return 'scale-1'
+    for (const course of this.walkCourses(gradingPeriod)) {
+      const mark = getMark(this.calculateWeightedPointRatio(gradingPeriod, course.classId))
+
+      totalWeighted += this.isCourseWeighted(course.name)
+        ? mark.wgpaPoints ?? mark.gpaPoints ?? 0
+        : mark.gpaPoints ?? 0
+      totalUnweighted += mark.gpaPoints ?? 0
+
+      if (mark.wgpaPoints != null || mark.gpaPoints != null) countWeighted++
+      if (mark.gpaPoints != null) countUnweighted++
     }
 
-    // synergy measures in hundredths of a percent
-    ratio = Math.round(ratio * 10_000) / 10_000;
-
-    let scale = 5;
-    for (const boundary of policy.details) {
-      const lowRatio = boundary.lowScore / policy.max;
-      if (ratio >= lowRatio) return `scale-${scale}`;
-      scale = Math.max(1, scale - 1);
+    return {
+      weighted: totalWeighted / countWeighted,
+      unweighted: totalUnweighted / countUnweighted,
     }
-    return 'fg';
   }
 }
 
@@ -228,13 +203,13 @@ export class Api {
   token: string
   student: StudentInfo
   gradebookSignal: Signal<Gradebook | null>
-  scheduleSignal: Signal<Schedules | null>
+  scheduleSignal: Signal<Schedule | null>
 
   constructor(loginResponse: LoginResponse) {
     this.token = loginResponse.token
     this.student = loginResponse.student
-    this.gradebookSignal = createSignal<Gradebook | null>(null)
-    this.scheduleSignal = createSignal<Schedules | null>(null)
+    this.gradebookSignal = createSignal<Gradebook | null>(Gradebook.fromResponse(this, loginResponse))
+    this.scheduleSignal = createSignal<Schedule | null>(null)
   }
 
   get gradebook(): Gradebook | null {
@@ -247,12 +222,12 @@ export class Api {
     setGradebook(gradebook)
   }
 
-  get schedules(): Schedules | null {
+  get schedules(): Schedule | null {
     const [schedules] = this.scheduleSignal
     return schedules()
   }
 
-  set schedules(schedules: Schedules) {
+  set schedules(schedules: Schedule) {
     const [, setSchedules] = this.scheduleSignal
     setSchedules(schedules)
   }
