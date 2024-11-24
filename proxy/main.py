@@ -7,7 +7,7 @@ import aiohttp_cors
 import msgpack
 from aiohttp import web
 
-from proxy.client import InvalidCredentials, StudentVue
+from client import InvalidCredentials, StudentVue
 
 MISSING = cast(Any, None)
 
