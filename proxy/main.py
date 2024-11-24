@@ -85,6 +85,8 @@ class StudentVueScraper(StudentVue):
         marks = raw['Marks']['Mark']
         weights = marks['GradeCalculationSummary'].get('AssignmentGradeCalc', [])
         assignments = marks['Assignments'].get('Assignment', [])
+        if not isinstance(assignments, list):
+            assignments = [assignments]
         return {
             'classId': hash(raw['@Title']) >> 6,  # there is no actual ID provided, so just hash the name for now
             'period': raw['@Period'],
