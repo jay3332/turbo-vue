@@ -334,7 +334,7 @@ export default function Assignments() {
               <thead class="bg-bg-0 font-title">
                 <tr class="[&>th]:py-3">
                   <th scope="col" class="w-1/2">Assignment</th>
-                  <th scope="col" class="px-4">Category</th>
+                  <th scope="col" class="px-4 mobile:px-0">Type</th>
                   <th scope="col" class="px-4">Score</th>
                   <th class="lg:table-cell hidden">Impact</th>
                   <th scope="col" class="px-2 mobile:px-0">

@@ -61,8 +61,8 @@ module.exports = {
       },
     },
     fontFamily: {
-      title: ['"Plus Jakarta Sans"', "'Inter var'", ...defaultTheme.fontFamily.sans],
-      sans: ["'Inter var'", ...defaultTheme.fontFamily.sans],
+      title: ["Figtree", '"Plus Jakarta Sans"', "'Inter var'", ...defaultTheme.fontFamily.sans],
+      sans: ["Figtree", "'Inter var'", ...defaultTheme.fontFamily.sans],
       mono: [
         '"Geist Mono"', 'Menlo', 'Monaco', 'Lucida Console', 'Liberation Mono',
         'DejaVu Sans Mono', 'Bitstream Vera Sans Mono', 'Courier New', 'monospace',

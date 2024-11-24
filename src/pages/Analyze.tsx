@@ -105,7 +105,7 @@ export default function Analyze() {
             max: endTime + padding,
           },
           y: {
-            ticks: { callback: value => value + '%' },
+            ticks: { callback: value => value.toString().slice(0, 4) + '%' },
           }
         },
         parsing: false,
