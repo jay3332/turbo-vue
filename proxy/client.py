@@ -1,6 +1,10 @@
+from base64 import b64encode
 from collections import OrderedDict
+from datetime import datetime
 from urllib.parse import urlparse
 
+from Crypto.Cipher import AES
+from Crypto.Util.Padding import pad
 from aiohttp import ClientSession
 from lxml import etree
 from xmljson import badgerfish, XMLData
@@ -9,8 +13,6 @@ COOKIES = {
     'PVUE': 'ENG',
     'MOBILE_REQUEST_CORE_PAGE': 'Y',
     'AppSupportsSession': '1',
-    # This must be kept up to date with mobile version
-    'edupointkeyversion': '/NA4Hhin2wgW9fCFiArBMbltR1oy6rlqC1Uug/bNBRyheGs9Un8FJZq8MrAFljL/',
 }
 
 XML_TEMPLATE = """
@@ -45,6 +47,17 @@ def xmlesc(txt: str) -> str:
     txt = txt.replace('"', "&quot;")
     txt = txt.replace("'", "&apos;")
     return txt
+
+
+_EDUPOINT_KEY = b'b2524efb438b4532b322e633d5aff252'
+_EDUPOINT_IV = b'AES' + b'\x00' * 13
+
+
+def generate_edupoint_key():
+    date = datetime.now().strftime("%m%d%Y")
+    cipher = AES.new(_EDUPOINT_KEY, AES.MODE_CBC, _EDUPOINT_IV)
+    encrypted = cipher.encrypt(pad(f'{date}|8.7.0|{date}|android'.encode(), AES.block_size))
+    return b64encode(encrypted).decode()
 
 
 class StudentVue:
@@ -132,8 +145,10 @@ class StudentVue:
             param_str=param_str,
         )
 
+        cookies = COOKIES.copy()
+        cookies['edupointkeyversion'] = generate_edupoint_key()
         # Prevent cookie jar from escaping
-        cookies = '; '.join(f'{key}={value}' for key, value in COOKIES.items())
+        cookies = '; '.join(f'{key}={value}' for key, value in cookies.items())
 
         async with self.session.post(
             f'https://{self.district_domain}/Service/PXPCommunication.asmx',
