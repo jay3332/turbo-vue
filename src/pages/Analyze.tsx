@@ -22,7 +22,6 @@ const resolve = (name: string) => {
   document.body.appendChild(el)
   const color = getComputedStyle(el).color
   document.body.removeChild(el)
-  console.log(color.slice(4, -1))
   return color.slice(4, -1)
 }
 
