@@ -108,7 +108,7 @@ class StudentVueScraper(StudentVue):
 
     @staticmethod
     def _sanitize_assignment(raw: dict[str, Any]) -> dict[str, Any]:
-        if raw['@Points'].endswith('Points Possible') or raw['@Score'] == 'Not Graded':
+        if raw['@Points'].endswith('Points Possible') or raw.get('@Score') == 'Not Graded':
             max_score = float(raw['@Points'].removesuffix(' Points Possible'))
             score = None
         else:
