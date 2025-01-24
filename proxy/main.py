@@ -98,8 +98,8 @@ class StudentVueScraper(StudentVue):
                 {
                     'name': w['@Type'],
                     'weight': float(w['@Weight'].removesuffix('%')) / 100,
-                    'points': float(w['@Points'].replace(',', '')),
-                    'maxPoints': float(w['@PointsPossible'].replace(',', '')),
+                    'points': float(str(w['@Points']).replace(',', '')),
+                    'maxPoints': float(str(w['@PointsPossible']).replace(',', '')),
                     'mark': w['@CalculatedMark'],
                 }
                 for w in weights
