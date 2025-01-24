@@ -98,8 +98,8 @@ class StudentVueScraper(StudentVue):
                 {
                     'name': w['@Type'],
                     'weight': float(w['@Weight'].removesuffix('%')) / 100,
-                    'points': float(w['@Points']),
-                    'maxPoints': float(w['@PointsPossible']),
+                    'points': float(w['@Points'].replace(',', '')),
+                    'maxPoints': float(w['@PointsPossible'].replace(',', '')),
                     'mark': w['@CalculatedMark'],
                 }
                 for w in weights
@@ -109,11 +109,11 @@ class StudentVueScraper(StudentVue):
     @staticmethod
     def _sanitize_assignment(raw: dict[str, Any]) -> dict[str, Any]:
         if raw['@Points'].endswith('Points Possible') or raw.get('@Score') == 'Not Graded':
-            max_score = float(raw['@Points'].removesuffix(' Points Possible'))
+            max_score = float(raw['@Points'].removesuffix(' Points Possible').replace(",", ""))
             score = None
         else:
             try:
-                score, max_score = raw['@Points'].split(' / ')
+                score, max_score = raw['@Points'].replace(",", "").split(' / ')
                 score, max_score = float(score), float(max_score)
             except ValueError:
                 score = max_score = None
