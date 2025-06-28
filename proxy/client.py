@@ -56,7 +56,7 @@ _EDUPOINT_IV = b'AES' + b'\x00' * 13
 def generate_edupoint_key():
     date = datetime.now().strftime("%m%d%Y")
     cipher = AES.new(_EDUPOINT_KEY, AES.MODE_CBC, _EDUPOINT_IV)
-    encrypted = cipher.encrypt(pad(f'{date}|8.7.0|{date}|android'.encode(), AES.block_size))
+    encrypted = cipher.encrypt(pad(f'{date}|8.10.0|{date}|android'.encode(), AES.block_size))
     return b64encode(encrypted).decode()
 
 
