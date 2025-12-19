@@ -25,10 +25,10 @@ export default function Login() {
   })
 
   return (
-    <p class="w-full text-center">
+    <p class="w-full text-center mt-8 text-lg">
       This service is no longer available. 
       <br />
-      If you wish to host grades.jay3332.tech yourself, the source code is <a href="https://github.com/jay3332/turbo-vue">here</a>!
+      If you wish to host grades.jay3332.tech yourself, the source code is <a class="underline" href="https://github.com/jay3332/turbo-vue">here</a>!
     </p>
   );
 
