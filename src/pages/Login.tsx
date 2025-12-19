@@ -24,6 +24,14 @@ export default function Login() {
     }
   })
 
+  return (
+    <p class="w-full text-center">
+      This service is no longer available. 
+      <br />
+      If you wish to host grades.jay3332.tech yourself, the source code is <a href="https://github.com/jay3332/turbo-vue">here</a>!
+    </p>
+  );
+
   if (localStorage.getItem('token'))
     return <Navigate href="/refresh-mount" state={{redirectTo}} />
 
