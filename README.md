@@ -11,6 +11,20 @@
   </sup>
 </p>
 
+
+<p align="center">
+  <table>
+    <tr>
+      <td>
+        <img src="assets/image0.png" alt="1" width="400"/>
+      </td>
+      <td>
+        <img src="assets/image1.png" alt="2" width="400"/>
+      </td>
+    </tr>
+  </table>
+</p>
+
 ## Why a StudentVUE client?
 
 The StudentVUE user experience is described by many as slow, clunky, and outdated.
@@ -52,3 +66,5 @@ to fetch and serialize data from the StudentVUE backend.
   - [ ] Live Countdown
 - [ ] Attendance
 - [ ] Documents
+
+_This project is not affiliated with Edupoint._
